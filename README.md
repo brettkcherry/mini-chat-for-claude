@@ -1,4 +1,4 @@
-# Mini Chat for Claude 🍑
+# Mini Chat for Claude
 
 **A tiny floating chat widget for Claude that lives on your desktop.**
 
