@@ -364,7 +364,29 @@ TAURI_SIGNING_PRIVATE_KEY_PASSWORD="" npm run tauri build`
 (This mirrors the CI secret exactly, so the workflow config is
 rehearsal-validated.)
 
-**Publish runbook (Brett's part, ~10 min):**
+**PUBLISHED (source) 2026-07-02:** repo live at
+github.com/brettkcherry/mini-chat-for-claude (public, MIT). Automated via
+gh CLI (installed through winget; two device-code auths from Brett — the
+second needed the `workflow` scope to push the CI file). Secrets:
+`TAURI_SIGNING_PRIVATE_KEY` set; the password secret is deliberately
+ABSENT (GitHub forbids empty secrets; an unset secret yields "" in
+Actions, which matches the locally-rehearsed passwordless config).
+**Release tag intentionally deferred** — Brett wants new features + the
+README screenshot in before v0.2.0 goes public. Tag when ready:
+`git tag v0.2.0 && git push --tags`.
+
+**Same session — titlebar redesign + settings menu (Brett's spec):**
+- Titlebar now: ➕ new chat · 🕘 history · ⚙ settings · — minimize · ✕.
+- Settings card holds what the titlebar lost: Always-on-top toggle (now
+  PERSISTED — it wasn't before), raw-text-mode toggle, "API key…" button
+  (opens the existing key card), and the new **opacity slider** (30–100%,
+  live, persisted). Opacity fades background chrome only — text stays
+  readable (design choice; whole-window fade available if Brett prefers).
+- Minimize = taskbar; ✕ = hide (Ctrl+Shift+Space summons); Shift+✕ = quit.
+- Committed as 067e601; frontend-only, no Rust changes. Pending Brett's
+  visual pass (along with the still-outstanding CSP smoke test).
+
+**Publish runbook (original, now mostly automated/done):**
 1. github.com → New repository → name `mini-chat-for-claude`, public,
    no README/license (we have them) → Create.
 2. Tell Claude the GitHub username → endpoint placeholder gets fixed +
