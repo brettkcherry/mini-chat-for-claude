@@ -1,0 +1,659 @@
+/* ============================================================
+   Claude Mini — styles
+   Design ethos: tiny, calm, responsive at every width.
+   Layout uses CSS container queries so the UI reflows based on
+   the WINDOW's width, not the viewport. This is the Spotify
+   mini-player trick.
+   ============================================================ */
+
+:root {
+  /* Color tokens — dark theme first, light follows OS later */
+  --bg: rgba(20, 20, 22, 0.92);
+  --bg-elev: rgba(255, 255, 255, 0.04);
+  --bg-elev-strong: rgba(255, 255, 255, 0.08);
+  --border: rgba(255, 255, 255, 0.08);
+  --text: #ececec;
+  --text-dim: #9a9a9a;
+  --text-faint: #6a6a6a;
+  --accent: #c97a4a;       /* Claude warm */
+  --accent-soft: rgba(201, 122, 74, 0.18);
+  --bubble-user: #2a2a2e;
+  --bubble-claude: transparent;
+  --danger: #ff6b6b;
+
+  /* Geometry */
+  --radius-window: 12px;
+  --radius-bubble: 14px;
+  --radius-control: 8px;
+  --titlebar-h: 32px;
+
+  /* Type */
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI",
+    system-ui, sans-serif;
+  --font-mono: ui-monospace, "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+  --fs-msg: 13.5px;
+  --lh-msg: 1.55;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  overflow: hidden;
+  font-family: var(--font-ui);
+  color: var(--text);
+  background: transparent;            /* window is transparent; .app draws bg */
+  -webkit-font-smoothing: antialiased;
+  user-select: none;                  /* default no-select; messages re-enable */
+}
+
+/* ---------- App shell ---------- */
+.app {
+  display: grid;
+  grid-template-rows: var(--titlebar-h) 1fr auto;
+  height: 100vh;
+  width: 100vw;
+  background: var(--bg);
+  border-radius: var(--radius-window);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  container-type: inline-size;        /* enable container queries on width */
+  container-name: app;
+}
+
+/* ---------- Titlebar (drag region) ---------- */
+.titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 6px 0 12px;
+  height: var(--titlebar-h);
+  border-bottom: 1px solid var(--border);
+  /* Critical: this whole strip is draggable. Buttons inside override. */
+}
+
+.titlebar__title {
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--text-dim);
+  pointer-events: none;               /* don't steal drag */
+}
+
+.titlebar__actions {
+  display: flex;
+  gap: 2px;
+  -webkit-app-region: no-drag;        /* buttons clickable, not draggable */
+}
+
+.titlebar__btn {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--text-dim);
+  width: 24px;
+  height: 22px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.titlebar__btn:hover {
+  background: var(--bg-elev);
+  color: var(--text);
+}
+.titlebar__btn.is-active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.titlebar__btn-text {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+}
+
+/* ---------- Messages ---------- */
+.messages {
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 14px 14px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  user-select: text;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+.messages::-webkit-scrollbar {
+  width: 8px;
+}
+.messages::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+}
+
+.welcome {
+  margin: auto;
+  text-align: center;
+  color: var(--text-faint);
+  user-select: none;
+}
+.welcome__title {
+  font-size: 14px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+.welcome__hint {
+  font-size: 12px;
+}
+.welcome__hint--kbd {
+  margin-top: 10px;
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+
+.msg {
+  font-size: var(--fs-msg);
+  line-height: var(--lh-msg);
+  max-width: 100%;
+  word-wrap: break-word;
+}
+.msg--user {
+  align-self: flex-end;
+  background: var(--bubble-user);
+  padding: 8px 12px;
+  border-radius: var(--radius-bubble);
+  border-bottom-right-radius: 4px;
+  max-width: 85%;
+}
+.msg--claude {
+  align-self: flex-start;
+  max-width: 100%;
+  color: var(--text);
+}
+
+/* ---------- Rendered markdown inside Claude bubbles ---------- */
+.msg--claude > :first-child { margin-top: 0; }
+.msg--claude > :last-child { margin-bottom: 0; }
+
+.msg--claude p {
+  margin: 0 0 8px;
+}
+.msg--claude h1, .msg--claude h2, .msg--claude h3,
+.msg--claude h4, .msg--claude h5, .msg--claude h6 {
+  margin: 12px 0 6px;
+  line-height: 1.3;
+  font-weight: 650;
+}
+.msg--claude h1 { font-size: 1.25em; }
+.msg--claude h2 { font-size: 1.15em; }
+.msg--claude h3 { font-size: 1.05em; }
+.msg--claude h4, .msg--claude h5, .msg--claude h6 { font-size: 1em; }
+
+.msg--claude ul, .msg--claude ol {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+.msg--claude li {
+  margin: 2px 0;
+}
+
+.msg--claude code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: var(--bg-elev-strong);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.msg--claude pre {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 0 0 8px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.msg--claude pre code {
+  background: transparent;
+  padding: 0;
+  font-size: 0.85em;
+  line-height: 1.5;
+}
+
+.msg--claude blockquote {
+  margin: 0 0 8px;
+  padding: 2px 0 2px 10px;
+  border-left: 2px solid var(--accent);
+  color: var(--text-dim);
+}
+
+.msg--claude hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 10px 0;
+}
+
+.msg--claude a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--accent);
+  cursor: copy;                        /* click = copy URL, not navigate */
+}
+
+/* Fading "Copied" signal that appears after a clicked link */
+.copied-tag {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  pointer-events: none;
+  animation: copied-fade 1100ms ease forwards;
+}
+@keyframes copied-fade {
+  0%   { opacity: 0; transform: translateY(2px); }
+  15%  { opacity: 1; transform: translateY(0); }
+  70%  { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-6px); }
+}
+
+/* Raw mode: bare-bones text — markdown source shown verbatim.
+   Toggled by the </> titlebar button; preference persists. */
+.app.raw-mode .msg--claude:not(.msg--error) {
+  white-space: pre-wrap;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+.msg--claude table {
+  border-collapse: collapse;
+  margin: 0 0 8px;
+  font-size: 0.9em;
+  display: block;
+  overflow-x: auto;
+}
+.msg--claude th, .msg--claude td {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  text-align: left;
+}
+.msg--claude th {
+  background: var(--bg-elev);
+}
+
+/* Streaming bubble — show a soft blinking caret to signal "live". */
+.msg--streaming::after {
+  content: "▍";
+  display: inline-block;
+  margin-left: 2px;
+  color: var(--accent);
+  animation: blink 1s steps(2, start) infinite;
+}
+@keyframes blink {
+  to { visibility: hidden; }
+}
+
+.msg--error {
+  align-self: flex-start;
+  max-width: 100%;
+  color: var(--danger);
+  font-size: 12.5px;
+  border-left: 2px solid var(--danger);
+  padding-left: 10px;
+  opacity: 0.9;
+}
+
+.composer__input:disabled {
+  opacity: 0.5;
+}
+
+/* ---------- Composer (input bar) ---------- */
+.composer {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: end;
+  gap: 6px;
+  padding: 8px 8px 10px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-elev);
+}
+
+.composer__badges {
+  display: flex;
+  flex-direction: row;
+  gap: 4px;
+  align-items: center;
+}
+
+.composer__model {
+  font-size: 10.5px;
+  color: var(--text-dim);
+  padding: 6px 8px;
+  background: var(--bg-elev-strong);
+  border-radius: var(--radius-control);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  text-align: center;
+}
+
+/* .composer__effort deliberately has no overrides — it's a plain pill,
+   identical to the model badge. */
+
+.composer__input {
+  appearance: none;
+  resize: none;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--fs-msg);
+  line-height: var(--lh-msg);
+  padding: 6px 4px;
+  max-height: 160px;                  /* keeps the composer from eating the chat */
+  overflow-y: auto;
+  user-select: text;
+}
+.composer__input::placeholder {
+  color: var(--text-faint);
+}
+
+.composer__send {
+  appearance: none;
+  background: var(--accent);
+  border: 0;
+  color: #fff;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-control);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: opacity 120ms ease, transform 80ms ease;
+}
+.composer__send:hover {
+  opacity: 0.9;
+}
+.composer__send:active {
+  transform: scale(0.96);
+}
+.composer__send:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---------- API key setup card ---------- */
+.setup {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-bubble);
+  padding: 14px;
+  user-select: none;
+}
+.setup__title {
+  font-size: 12.5px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.setup__state {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+.setup__state--ok {
+  color: #7dc97a;
+}
+.setup__remove {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--danger);
+  font-size: 10.5px;
+  padding: 6px 0 0;
+  cursor: pointer;
+  opacity: 0.75;
+}
+.setup__remove:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+.setup__hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+.setup__row {
+  display: flex;
+  gap: 6px;
+}
+.setup__input {
+  flex: 1;
+  min-width: 0;
+  appearance: none;
+  background: var(--bg-elev-strong);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  padding: 7px 9px;
+  outline: none;
+  user-select: text;
+}
+.setup__input:focus {
+  border-color: var(--accent);
+}
+.setup__save {
+  appearance: none;
+  background: var(--accent);
+  border: 0;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 14px;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+.setup__save:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.setup__status {
+  font-size: 11px;
+  margin-top: 8px;
+  min-height: 14px;
+  color: var(--text-dim);
+}
+.setup__status--ok {
+  color: #7dc97a;
+}
+.setup__status--err {
+  color: var(--danger);
+}
+
+/* ---------- Sessions & export card ---------- */
+.sessions {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-bubble);
+  padding: 12px 14px;
+  user-select: none;
+}
+.sessions__title {
+  font-size: 12.5px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.sessions__actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.sessions__btn {
+  appearance: none;
+  background: var(--bg-elev-strong);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--text);
+  font-size: 11px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.sessions__btn:hover {
+  border-color: var(--accent);
+}
+.sessions__status {
+  font-size: 10.5px;
+  color: var(--text-dim);
+  min-height: 14px;
+  margin: 6px 0 4px;
+  word-break: break-all;
+}
+.sessions__list {
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.sessions__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 4px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  border-radius: 6px;
+}
+.sessions__row:hover {
+  background: var(--bg-elev-strong);
+}
+.sessions__row--current .sessions__rowtitle::after {
+  content: " · current";
+  color: var(--accent);
+  font-size: 9.5px;
+}
+.sessions__rowmain {
+  flex: 1;
+  min-width: 0;
+}
+.sessions__rowtitle {
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sessions__rowmeta {
+  font-size: 9.5px;
+  color: var(--text-faint);
+}
+.sessions__del {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--text-faint);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+.sessions__del:hover {
+  color: var(--danger);
+  background: var(--bg-elev-strong);
+}
+.sessions__empty {
+  font-size: 11px;
+  color: var(--text-faint);
+  padding: 10px 4px;
+}
+.sessions__quit {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--text-faint);
+  font-size: 10.5px;
+  padding: 8px 0 2px;
+  cursor: pointer;
+  width: 100%;
+  text-align: center;
+}
+.sessions__quit:hover {
+  color: var(--danger);
+}
+
+/* ---------- Update banner ---------- */
+.update-banner {
+  appearance: none;
+  border: 0;
+  border-top: 1px solid var(--border);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 7px 10px;
+  cursor: pointer;
+  width: 100%;
+}
+.update-banner:hover {
+  background: var(--accent);
+  color: #fff;
+}
+.update-banner:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+/* ============================================================
+   Container queries — the Spotify trick
+   These respond to the WINDOW's width (via @container app),
+   not the viewport. Each breakpoint trims the UI gracefully.
+   ============================================================ */
+
+/* Compact: < 360px — hide model/effort badges, tighten padding */
+@container app (max-width: 359px) {
+  .composer__badges {
+    display: none;
+  }
+  .messages {
+    padding: 10px 10px 6px;
+  }
+  .composer {
+    padding: 6px 6px 8px;
+    grid-template-columns: 1fr auto;
+  }
+  .titlebar__title {
+    display: none;
+  }
+}
+
+/* Standard: 360-479px — current defaults are tuned here */
+
+/* Expanded: ≥ 480px — roomier bubbles, bigger type */
+@container app (min-width: 480px) {
+  :root {
+    --fs-msg: 14.5px;
+  }
+  .messages {
+    padding: 18px 20px 10px;
+    gap: 14px;
+  }
+  .msg--user {
+    max-width: 75%;
+  }
+  .composer {
+    padding: 10px 12px 12px;
+  }
+}

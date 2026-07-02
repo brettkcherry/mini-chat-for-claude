@@ -1,0 +1,56 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Mini Chat for Claude",
+  "version": "0.2.0",
+  "identifier": "com.brettcherry.claudemini",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Mini Chat for Claude",
+        "width": 380,
+        "height": 560,
+        "minWidth": 280,
+        "minHeight": 320,
+        "maxWidth": 800,
+        "maxHeight": 900,
+        "resizable": true,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": false,
+        "skipTaskbar": false,
+        "shadow": true,
+        "center": true,
+        "visible": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/YOUR-GITHUB-USERNAME/mini-chat-for-claude/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE4NzQ2MEExMDcwNUY5NUEKUldSYStRVUhvV0IwR0tYcG05U3lqdHdqQlQ0ZG1TbXRZMjRWK3lCcVZuT2FrY1ZZU3Bua1o0UkYK"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ]
+  }
+}

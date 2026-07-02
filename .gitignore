@@ -1,0 +1,23 @@
+# Frontend
+node_modules/
+dist/
+.vite/
+*.log
+
+# Rust / Tauri
+src-tauri/target/
+src-tauri/gen/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets (just in case)
+.env
+.env.local
+*.key

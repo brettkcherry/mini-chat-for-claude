@@ -1,0 +1,48 @@
+[package]
+# Internal crate name stays "claude-mini" — the public-facing name is
+# "Mini for Claude" (productName in tauri.conf.json). Keeping the crate,
+# identifier, and keyring service stable preserves existing user data.
+name = "claude-mini"
+version = "0.2.0"
+description = "Mini Chat for Claude — a tiny floating desktop chat widget for Claude"
+authors = ["Brett Cherry"]
+edition = "2021"
+
+# Binary entry — this file plus lib.rs is the standard Tauri 2 split.
+[[bin]]
+name = "claude-mini"
+path = "src/main.rs"
+
+# Library — Tauri's mobile story expects this even on desktop-only apps.
+[lib]
+name = "claude_mini_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-window-state = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-updater = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Anthropic streaming client
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"] }
+futures-util = "0.3"
+
+# API key storage — Windows Credential Manager / macOS Keychain.
+# Linux port (v0.2): add "sync-secret-service" feature (GNOME Keyring/KWallet
+# via DBus; needs libdbus dev package at build time). Don't use "linux-native"
+# — that's kernel keyutils, which forgets keys on reboot.
+keyring = { version = "3", features = ["windows-native", "apple-native"] }
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"      # optimize for binary size — we want this tiny
+strip = true
