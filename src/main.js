@@ -75,21 +75,21 @@ function applyOpacity(pct) {
 // (June 2026). Haiku doesn't support effort at all; Sonnet lacks xhigh.
 // Future-proofing idea: query /v1/models at startup instead of hardcoding.
 const MODELS = [
-  { label: "Fable 5", id: "claude-fable-5", efforts: ["low", "medium", "high", "xhigh", "max"] },
-  { label: "Opus 4.8", id: "claude-opus-4-8", efforts: ["low", "medium", "high", "xhigh", "max"] },
-  { label: "Sonnet 4.6", id: "claude-sonnet-4-6", efforts: ["low", "medium", "high", "max"] },
+  { label: "Fable 5", id: "claude-fable-5", efforts: ["Low", "Medium", "High", "xHigh", "Max"] },
+  { label: "Opus 4.8", id: "claude-opus-4-8", efforts: ["Low", "Medium", "High", "xHigh", "Max"] },
+  { label: "Sonnet 4.6", id: "claude-sonnet-4-6", efforts: ["Low", "Medium", "High", "Max"] },
   { label: "Haiku 4.5", id: "claude-haiku-4-5-20251001", efforts: [] },
 ];
 let modelIdx = 2; // default: Sonnet — best speed/cost balance for a widget
 
 // ---------- Effort level ----------
-// "auto" = don't send the field; the API picks its default. Persisted.
-let effortChoice = localStorage.getItem("effort") || "auto";
+// "Auto" = don't send the field; the API picks its default. Persisted.
+let effortChoice = localStorage.getItem("effort") || "Auto";
 
 const effortEl = document.getElementById("effort-picker");
 
 function effortOptions() {
-  return ["auto", ...MODELS[modelIdx].efforts];
+  return ["Auto", ...MODELS[modelIdx].efforts];
 }
 
 function renderEffortBadge() {
@@ -97,7 +97,7 @@ function renderEffortBadge() {
   effortEl.style.display = supported ? "" : "none";
   if (!supported) return;
   if (!effortOptions().includes(effortChoice)) {
-    effortChoice = "auto"; // e.g. xhigh selected, then switched to Sonnet
+    effortChoice = "Auto"; // e.g. xhigh selected, then switched to Sonnet
     localStorage.setItem("effort", effortChoice);
   }
   effortEl.textContent = effortChoice;
@@ -237,9 +237,9 @@ async function submit() {
       model: MODELS[modelIdx].id,
       messages: history.slice(),
       effort:
-        effortChoice === "auto" || MODELS[modelIdx].efforts.length === 0
+        effortChoice === "Auto" || MODELS[modelIdx].efforts.length === 0
           ? null
-          : effortChoice,
+          : effortChoice.toLowerCase(),
     });
     // No-op here: history commit happens in the 'stop' chunk handler so
     // we capture the final text from the bubble's accumulated content.

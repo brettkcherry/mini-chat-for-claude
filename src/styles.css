@@ -22,7 +22,11 @@
   --danger: #ff6b6b;
 
   /* Geometry */
-  --radius-window: 12px;
+  /* Matches Windows 11's own system corner radius (DWMWCP_ROUND, ~8px
+     logical). This has to agree with whatever DWM rounds the native
+     window shadow to, or the two edges visibly disagree — see the corner
+     debugging saga in window.rs / PLAN.md before changing this value. */
+  --radius-window: 8px;
   --radius-bubble: 14px;
   --radius-control: 8px;
   --titlebar-h: 32px;
@@ -63,6 +67,12 @@ html, body {
   overflow: hidden;
   backdrop-filter: blur(20px) saturate(140%);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
+  /* No CSS box-shadow here on purpose: it doesn't composite cleanly
+     through Tauri's transparent window on Windows (renders as a hard-
+     edged color halo — the desktop showing through unblended — instead
+     of a soft fade). The native OS shadow (tauri.conf.json "shadow":
+     true) handles it instead; it's always smooth because DWM draws it
+     directly, no webview compositing involved. */
   container-type: inline-size;        /* enable container queries on width */
   container-name: app;
 }

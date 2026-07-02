@@ -21,3 +21,6 @@ Thumbs.db
 .env
 .env.local
 *.key
+
+# Scratch space for icon-picking rounds — never meant to ship
+icon-drafts/

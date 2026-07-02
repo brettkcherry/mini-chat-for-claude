@@ -96,6 +96,24 @@ fn has_saved_window_state(app: &AppHandle) -> bool {
 
 #[cfg(target_os = "windows")]
 fn apply_windows_chrome(_window: &WebviewWindow) {
+    // History, so nobody re-tries the two dead ends already explored here:
+    //
+    // 1. DWMWA_WINDOW_CORNER_PREFERENCE = DWMWCP_DONOTROUND — squared off
+    //    DWM's native shadow instead of rounding it, so a square silhouette
+    //    peeked out from behind our round CSS content. Worse, not better.
+    // 2. Native shadow off (`"shadow": false`) + a hand-drawn CSS
+    //    box-shadow on `.app` — CSS box-shadow does not composite cleanly
+    //    through Tauri's transparent window on Windows; it rendered as a
+    //    hard-edged color halo (the desktop showing through unblended)
+    //    instead of a soft gradual fade.
+    //
+    // The actual fix needed no Rust code at all: `"shadow": true` (native,
+    // always smooth — DWM draws it directly, no webview compositing) plus
+    // matching our own `--radius-window` CSS variable to Windows 11's own
+    // system corner radius (~8px) instead of fighting DWM over which
+    // radius wins. Same radius on both sides means there's nothing left
+    // to visibly disagree.
+
     // TODO(v0.2): wire up window_vibrancy crate for Mica on Windows 11.
     // The CSS backdrop-filter blur is good enough for now.
 }

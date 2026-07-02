@@ -18,7 +18,7 @@ Frameless, always-on-top-toggleable, resizable, and beautifully responsive at ev
 - **Sessions** — every chat autosaves locally; browse, reload, delete
 - **Export** — copy any chat as Markdown or save as `.md`
 - **API key in the OS credential store** (Windows Credential Manager) — never plaintext on disk
-- **Remembers its position and size**; pin it always-on-top with one click
+- **Remembers its position and size**; pin it always-on-top from Settings
 - **Auto-updates** from GitHub Releases (opt-in per update, one click)
 
 ## Install (Windows)
