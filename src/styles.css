@@ -594,6 +594,90 @@ html, body {
   color: var(--danger);
 }
 
+/* ---------- Settings card ---------- */
+.settings-card {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-bubble);
+  padding: 12px 14px;
+  user-select: none;
+}
+.settings-card__title {
+  font-size: 12.5px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.settings-card__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 2px;
+  font-size: 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+}
+.settings-card__row--slider {
+  cursor: default;
+}
+.settings-card__hint {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  margin-left: 4px;
+}
+.settings-card__toggle {
+  flex: none;
+  width: 30px;
+  height: 16px;
+  border-radius: 8px;
+  background: var(--bg-elev-strong);
+  position: relative;
+  transition: background 120ms ease;
+}
+.settings-card__toggle::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  transition: transform 120ms ease, background 120ms ease;
+}
+.settings-card__toggle.is-on {
+  background: var(--accent-soft);
+}
+.settings-card__toggle.is-on::after {
+  transform: translateX(14px);
+  background: var(--accent);
+}
+.settings-card__slider {
+  flex: 1;
+  accent-color: var(--accent);
+}
+.settings-card__pct {
+  font-size: 10.5px;
+  color: var(--text-dim);
+  min-width: 34px;
+  text-align: right;
+}
+.settings-card__keybtn {
+  appearance: none;
+  background: var(--bg-elev-strong);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--text);
+  font-size: 11px;
+  padding: 6px 10px;
+  cursor: pointer;
+  margin-top: 10px;
+}
+.settings-card__keybtn:hover {
+  border-color: var(--accent);
+}
+
 /* ---------- Update banner ---------- */
 .update-banner {
   appearance: none;

@@ -27,10 +27,9 @@ const els = {
   messages: document.getElementById("messages"),
   input: document.getElementById("input"),
   send: document.getElementById("send"),
-  pin: document.getElementById("btn-pin"),
   close: document.getElementById("btn-close"),
-  key: document.getElementById("btn-key"),
-  raw: document.getElementById("btn-raw"),
+  min: document.getElementById("btn-min"),
+  settings: document.getElementById("btn-settings"),
   newChat: document.getElementById("btn-new"),
   history: document.getElementById("btn-history"),
   modelPicker: document.getElementById("model-picker"),
@@ -53,10 +52,22 @@ function renderAssistantNode(node) {
 
 function applyRawMode() {
   els.app.classList.toggle("raw-mode", rawMode);
-  els.raw.classList.toggle("is-active", rawMode);
   document
     .querySelectorAll(".msg--claude:not(.msg--error)")
     .forEach(renderAssistantNode);
+}
+
+// ---------- Background opacity ----------
+// Fades the window chrome, keeps text fully readable (background alpha
+// only, not whole-window opacity). Persisted; applied at startup.
+let opacityPct = parseInt(localStorage.getItem("opacity") || "92", 10);
+function applyOpacity(pct) {
+  opacityPct = Math.min(100, Math.max(30, pct));
+  localStorage.setItem("opacity", String(opacityPct));
+  const a = opacityPct / 100;
+  const root = document.documentElement.style;
+  root.setProperty("--bg", `rgba(20, 20, 22, ${a})`);
+  root.setProperty("--bubble-user", `rgba(42, 42, 46, ${Math.min(1, a + 0.15)})`);
 }
 
 // ---------- Model registry ----------
@@ -113,12 +124,15 @@ els.modelPicker.addEventListener("click", () => {
 // ---------- Window controls ----------
 const appWindow = getCurrentWindow();
 
-let alwaysOnTop = false;
-els.pin.addEventListener("click", async () => {
-  alwaysOnTop = !alwaysOnTop;
-  await appWindow.setAlwaysOnTop(alwaysOnTop);
-  els.pin.classList.toggle("is-active", alwaysOnTop);
-});
+// Always-on-top — persisted, applied at startup, toggled from Settings.
+let alwaysOnTop = localStorage.getItem("pin") === "1";
+async function setAlwaysOnTop(v) {
+  alwaysOnTop = v;
+  localStorage.setItem("pin", v ? "1" : "0");
+  await appWindow.setAlwaysOnTop(v);
+}
+
+els.min.addEventListener("click", () => appWindow.minimize());
 
 els.close.addEventListener("click", async (e) => {
   // Plain click hides (summon back with Ctrl+Shift+Space).
@@ -333,24 +347,12 @@ function showCopiedTag(anchor) {
   tag.addEventListener("animationend", () => tag.remove());
 }
 
-// ---------- Raw mode toggle ----------
-els.raw.addEventListener("click", () => {
-  rawMode = !rawMode;
-  localStorage.setItem("rawMode", rawMode ? "1" : "0");
-  applyRawMode();
-});
-
 // Click anywhere outside a floating card dismisses it — except the key
 // card during first-run (no key, composer disabled), when it's the only
 // path forward and shouldn't vanish under a stray click.
 document.addEventListener("click", (e) => {
   const setup = els.messages.querySelector(".setup");
-  if (
-    setup &&
-    !setup.contains(e.target) &&
-    !els.key.contains(e.target) &&
-    !els.input.disabled
-  ) {
+  if (setup && !setup.contains(e.target) && !els.input.disabled) {
     setup.remove();
   }
   const sessions = els.messages.querySelector(".sessions");
@@ -360,6 +362,14 @@ document.addEventListener("click", (e) => {
     !els.history.contains(e.target)
   ) {
     sessions.remove();
+  }
+  const settings = els.messages.querySelector(".settings-card");
+  if (
+    settings &&
+    !settings.contains(e.target) &&
+    !els.settings.contains(e.target)
+  ) {
+    settings.remove();
   }
 });
 
@@ -530,17 +540,72 @@ function escapeHtml(s) {
   })[c]);
 }
 
-// ---------- API key setup ----------
-els.key.addEventListener("click", () => {
-  // Toggle: if the card is open, close it; otherwise open it.
-  const existing = els.messages.querySelector(".setup");
+// ---------- Settings ----------
+els.settings.addEventListener("click", () => {
+  const existing = els.messages.querySelector(".settings-card");
   if (existing) {
     existing.remove();
-    setComposerEnabled(true);
   } else {
-    showSetupCard();
+    showSettingsCard();
   }
 });
+
+function showSettingsCard() {
+  els.messages.querySelector(".settings-card")?.remove();
+
+  const card = document.createElement("div");
+  card.className = "settings-card";
+  card.innerHTML = `
+    <div class="settings-card__title">Settings</div>
+    <div class="settings-card__row" data-set="pin">
+      <span>Always on top</span>
+      <span class="settings-card__toggle ${alwaysOnTop ? "is-on" : ""}"></span>
+    </div>
+    <div class="settings-card__row" data-set="raw">
+      <span>Raw text mode <span class="settings-card__hint">&lt;/&gt;</span></span>
+      <span class="settings-card__toggle ${rawMode ? "is-on" : ""}"></span>
+    </div>
+    <div class="settings-card__row settings-card__row--slider">
+      <span>Opacity</span>
+      <input type="range" min="30" max="100" step="1" value="${opacityPct}" class="settings-card__slider" />
+      <span class="settings-card__pct">${opacityPct}%</span>
+    </div>
+    <button class="settings-card__keybtn">API key…</button>
+  `;
+
+  card.querySelector('[data-set="pin"]').addEventListener("click", async (ev) => {
+    await setAlwaysOnTop(!alwaysOnTop);
+    ev.currentTarget
+      .querySelector(".settings-card__toggle")
+      .classList.toggle("is-on", alwaysOnTop);
+  });
+
+  card.querySelector('[data-set="raw"]').addEventListener("click", (ev) => {
+    rawMode = !rawMode;
+    localStorage.setItem("rawMode", rawMode ? "1" : "0");
+    applyRawMode();
+    ev.currentTarget
+      .querySelector(".settings-card__toggle")
+      .classList.toggle("is-on", rawMode);
+  });
+
+  const slider = card.querySelector(".settings-card__slider");
+  const pctEl = card.querySelector(".settings-card__pct");
+  slider.addEventListener("input", () => {
+    applyOpacity(parseInt(slider.value, 10));
+    pctEl.textContent = `${opacityPct}%`;
+  });
+
+  card.querySelector(".settings-card__keybtn").addEventListener("click", (ev) => {
+    // stopPropagation so the document-level dismiss handler doesn't
+    // instantly close the setup card we're about to open.
+    ev.stopPropagation();
+    card.remove();
+    showSetupCard();
+  });
+
+  els.messages.prepend(card);
+}
 
 function setComposerEnabled(enabled) {
   els.input.disabled = !enabled;
@@ -679,5 +744,9 @@ async function init() {
     els.input.focus();
   }
   applyRawMode();
+  applyOpacity(opacityPct);
+  if (alwaysOnTop) {
+    appWindow.setAlwaysOnTop(true).catch(() => {});
+  }
 }
 init();
