@@ -355,6 +355,15 @@ for Claude" (old exports stay in "Claude Mini" — harmless).
 - gh CLI not installed → repo created/pushed manually by Brett (runbook
   below).
 
+**v0.2.0 built + signing verified 2026-07-02 14:40:** installer (1.95 MB)
++ `.sig` updater signature both produced, exit 0. Local-build gotcha:
+`TAURI_SIGNING_PRIVATE_KEY_PATH` did NOT work through the npm chain here —
+pass the key CONTENTS instead:
+`TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/mini-for-claude.key)"
+TAURI_SIGNING_PRIVATE_KEY_PASSWORD="" npm run tauri build`
+(This mirrors the CI secret exactly, so the workflow config is
+rehearsal-validated.)
+
 **Publish runbook (Brett's part, ~10 min):**
 1. github.com → New repository → name `mini-chat-for-claude`, public,
    no README/license (we have them) → Create.
