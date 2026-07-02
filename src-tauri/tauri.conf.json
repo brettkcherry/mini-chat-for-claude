@@ -37,7 +37,7 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://github.com/YOUR-GITHUB-USERNAME/mini-chat-for-claude/releases/latest/download/latest.json"
+        "https://github.com/brettkcherry/mini-chat-for-claude/releases/latest/download/latest.json"
       ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE4NzQ2MEExMDcwNUY5NUEKUldSYStRVUhvV0IwR0tYcG05U3lqdHdqQlQ0ZG1TbXRZMjRWK3lCcVZuT2FrY1ZZU3Bua1o0UkYK"
     }
