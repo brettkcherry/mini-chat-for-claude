@@ -1,3 +1,9 @@
+<!-- portfolio
+status: warm
+stage:  Near first release
+next:   Record the README screenshot/GIF, then ship v1
+-->
+
 # Claude Mini Player — PLAN.md
 
 > A floating desktop widget for chatting with Claude. Frameless, always-on-top, resizable, responsive. Inspired by Spotify's mini player.
@@ -638,3 +644,4 @@ cldMiniApp/
 - `max: 800×900` — wide enough for comfortable reading without becoming a "real app"
 - `shadow: true` — drop shadow around the frameless window so it doesn't look pasted onto the desktop
 - `csp: null` — disabled for dev; we'll tighten this before shipping a real release
+
