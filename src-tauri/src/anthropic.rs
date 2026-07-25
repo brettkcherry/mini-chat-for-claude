@@ -51,6 +51,68 @@ pub struct ChunkEvent {
     pub stop: bool,
 }
 
+/// SSE parser for the Anthropic streaming wire format. Accumulates bytes,
+/// splits on `\n\n` event boundaries, then within each event looks for
+/// `data: ` lines and parses JSON. Network-free — takes raw text chunks in,
+/// yields parsed `ChunkEvent`s out. Extracted from `stream_chat` so the
+/// buffer/boundary logic can be unit tested without a live connection.
+pub(crate) struct SseParser {
+    buffer: String,
+}
+
+impl SseParser {
+    pub(crate) fn new() -> Self {
+        Self { buffer: String::new() }
+    }
+
+    /// Feed a chunk of raw SSE text; returns any complete events it produced,
+    /// in arrival order. Text that doesn't complete an event boundary stays
+    /// buffered for the next call.
+    pub(crate) fn push(&mut self, text: &str) -> Vec<ChunkEvent> {
+        self.buffer.push_str(text);
+        let mut events = Vec::new();
+
+        while let Some(idx) = self.buffer.find("\n\n") {
+            let event_block: String = self.buffer.drain(..idx + 2).collect();
+
+            for line in event_block.lines() {
+                let Some(json_str) = line.strip_prefix("data: ") else {
+                    continue;
+                };
+                let Ok(value) = serde_json::from_str::<serde_json::Value>(json_str) else {
+                    continue;
+                };
+
+                match value.get("type").and_then(|t| t.as_str()) {
+                    Some("content_block_delta") => {
+                        if let Some(text) = value
+                            .pointer("/delta/text")
+                            .and_then(|t| t.as_str())
+                        {
+                            events.push(ChunkEvent {
+                                delta: text.to_string(),
+                                stop: false,
+                            });
+                        }
+                    }
+                    Some("message_stop") => {
+                        events.push(ChunkEvent {
+                            delta: String::new(),
+                            stop: true,
+                        });
+                    }
+                    // We ignore message_start / content_block_start /
+                    // content_block_stop / message_delta / ping for v0.1.
+                    // They become interesting once we surface token counts.
+                    _ => {}
+                }
+            }
+        }
+
+        events
+    }
+}
+
 /// Stream a chat completion. Calls `on_chunk` for each delta + once with
 /// `stop: true` when the stream ends cleanly.
 pub async fn stream_chat<F>(
@@ -88,54 +150,150 @@ where
         return Err(format!("api error {status}: {text}"));
     }
 
-    // SSE parser. Accumulate bytes, split on `\n\n` event boundaries,
-    // then within each event look for `data: ` lines and parse JSON.
+    // SSE parsing (buffer/boundary/event logic) lives in SseParser — see
+    // its doc comment. Here we just feed it network chunks and forward
+    // whatever events it produces.
     let mut stream = res.bytes_stream();
-    let mut buffer = String::new();
+    let mut parser = SseParser::new();
 
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.map_err(|e| format!("stream error: {e}"))?;
         let text = std::str::from_utf8(&chunk)
             .map_err(|e| format!("utf8 decode error: {e}"))?;
-        buffer.push_str(text);
-
-        while let Some(idx) = buffer.find("\n\n") {
-            let event_block: String = buffer.drain(..idx + 2).collect();
-
-            for line in event_block.lines() {
-                let Some(json_str) = line.strip_prefix("data: ") else {
-                    continue;
-                };
-                let Ok(value) = serde_json::from_str::<serde_json::Value>(json_str) else {
-                    continue;
-                };
-
-                match value.get("type").and_then(|t| t.as_str()) {
-                    Some("content_block_delta") => {
-                        if let Some(text) = value
-                            .pointer("/delta/text")
-                            .and_then(|t| t.as_str())
-                        {
-                            on_chunk(ChunkEvent {
-                                delta: text.to_string(),
-                                stop: false,
-                            });
-                        }
-                    }
-                    Some("message_stop") => {
-                        on_chunk(ChunkEvent {
-                            delta: String::new(),
-                            stop: true,
-                        });
-                    }
-                    // We ignore message_start / content_block_start /
-                    // content_block_stop / message_delta / ping for v0.1.
-                    // They become interesting once we surface token counts.
-                    _ => {}
-                }
-            }
+        for ev in parser.push(text) {
+            on_chunk(ev);
         }
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn single_content_block_delta() {
+        let mut parser = SseParser::new();
+        let events = parser.push(
+            "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"delta\":{\"text\":\"Hello\"}}\n\n",
+        );
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].delta, "Hello");
+        assert_eq!(events[0].stop, false);
+    }
+
+    #[test]
+    fn message_stop_event() {
+        let mut parser = SseParser::new();
+        let events = parser.push("event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n");
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].delta, "");
+        assert_eq!(events[0].stop, true);
+    }
+
+    #[test]
+    fn two_events_in_one_push() {
+        let mut parser = SseParser::new();
+        let input = "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"delta\":{\"text\":\"A\"}}\n\n\
+                     event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"delta\":{\"text\":\"B\"}}\n\n";
+        let events = parser.push(input);
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].delta, "A");
+        assert_eq!(events[1].delta, "B");
+    }
+
+    #[test]
+    fn event_split_across_two_pushes() {
+        let mut parser = SseParser::new();
+        let first = parser.push(
+            "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"delta\":{\"text\":\"Hi\"}}",
+        );
+        assert!(first.is_empty());
+        let second = parser.push("\n\n");
+        assert_eq!(second.len(), 1);
+        assert_eq!(second[0].delta, "Hi");
+    }
+
+    #[test]
+    fn malformed_json_ignored() {
+        let mut parser = SseParser::new();
+        let events = parser.push("data: {not valid json\n\n");
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn non_data_line_ignored() {
+        let mut parser = SseParser::new();
+        let events = parser.push("event: ping\n\n");
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn ignored_event_type() {
+        let mut parser = SseParser::new();
+        let events = parser.push(
+            "event: content_block_start\ndata: {\"type\":\"content_block_start\"}\n\n",
+        );
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn realistic_multi_event_stream() {
+        let mut parser = SseParser::new();
+        let input = concat!(
+            "event: message_start\ndata: {\"type\":\"message_start\"}\n\n",
+            "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"delta\":{\"text\":\"Hel\"}}\n\n",
+            "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"delta\":{\"text\":\"lo, \"}}\n\n",
+            "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"delta\":{\"text\":\"world!\"}}\n\n",
+            "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+        );
+        let events = parser.push(input);
+        assert_eq!(events.len(), 4);
+        let text: String = events
+            .iter()
+            .filter(|e| !e.stop)
+            .map(|e| e.delta.clone())
+            .collect();
+        assert_eq!(text, "Hello, world!");
+        assert!(events.last().unwrap().stop);
+    }
+
+    #[test]
+    fn request_body_shape_with_effort() {
+        let messages = vec![Message {
+            role: "user".to_string(),
+            content: "hi".to_string(),
+        }];
+        let body = RequestBody {
+            model: "claude-x",
+            max_tokens: 4096,
+            messages: &messages,
+            stream: true,
+            output_config: Some(OutputConfig { effort: "high" }),
+        };
+        let v = serde_json::to_value(&body).unwrap();
+        assert_eq!(v["output_config"]["effort"], "high");
+        assert_eq!(v["stream"], true);
+        assert!(v["max_tokens"].is_number());
+    }
+
+    #[test]
+    fn request_body_shape_without_effort() {
+        let messages = vec![Message {
+            role: "user".to_string(),
+            content: "hi".to_string(),
+        }];
+        let body = RequestBody {
+            model: "claude-x",
+            max_tokens: 4096,
+            messages: &messages,
+            stream: true,
+            output_config: None,
+        };
+        let v = serde_json::to_value(&body).unwrap();
+        assert!(v.get("output_config").is_none());
+        assert_eq!(v["stream"], true);
+        assert!(v["max_tokens"].is_number());
+    }
 }
