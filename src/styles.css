@@ -336,6 +336,57 @@ html, body {
   padding: 8px 8px 10px;
   border-top: 1px solid var(--border);
   background: var(--bg-elev);
+  /* Anchor for .model-menu, which sits directly above the composer no
+     matter how tall the textarea has grown. */
+  position: relative;
+}
+
+/* ---------- Model dropdown ---------- */
+.model-menu {
+  position: absolute;
+  left: 8px;
+  bottom: calc(100% - 2px);
+  z-index: 30;
+  min-width: 150px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px;
+  background: #1e1e21;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+  scrollbar-width: thin;
+}
+.model-menu__row {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 11.5px;
+  text-align: left;
+  padding: 6px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.model-menu__row:hover {
+  background: var(--bg-elev-strong);
+}
+.model-menu__row.is-current {
+  color: var(--accent);
+}
+.model-menu__row.is-current .model-menu__name::before {
+  content: "✓ ";
+}
+.model-menu__note {
+  font-size: 9px;
+  color: var(--text-faint);
 }
 
 .composer__badges {

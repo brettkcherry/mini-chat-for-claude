@@ -84,6 +84,7 @@ pub fn run() {
             commands::has_api_key,
             commands::delete_api_key,
             commands::api_key_status,
+            commands::list_models,
             commands::save_session,
             commands::list_sessions,
             commands::load_session,

@@ -169,6 +169,66 @@ What ships in v0.1:
 
 **Next step:** ~~Decide stack~~ ✅ Tauri. ~~Decide platform target~~ ✅ Windows first, Mac later. Now: scaffold the window + first streaming message. Everything after that is iteration on the layout.
 
+### Session 2026-07-30 — dynamic model list, corner fix confirmed, v0.2.1 ships
+
+**Corner/shadow bug — confirmed still fixed.** Brett flagged what looked
+like the same corner artifact again; turned out to be a stale build (many
+rebuilds + a full `node_modules` reinstall happened between the fix and
+when he looked). Source values unchanged since the round-3 fix: `shadow:
+true` in tauri.conf.json, `--radius-window: 8px` in styles.css. No code
+change needed — just confirmed and moved on. Lesson for future sessions:
+when a "regression" appears, diff against source before assuming new work
+is needed — could be looking at old bits.
+
+**Model list — the hardcoding is gone, not just updated.** Third time the
+baked-in model list went stale (Opus 4.7→4.8→5 across three sessions), so
+instead of updating the list again, removed the reason to ever update it:
+- New `list_models` Rust fn (`anthropic.rs`) hits `/v1/models` and returns
+  `Vec<ModelInfo>` — id, display label ("Claude " prefix stripped), and
+  effort levels **read directly from each model's own
+  `capabilities.effort` object**, not inferred/guessed.
+- Mythos filtered out server-side (invitation-only Project Glasswing —
+  showing it would just error for most accounts).
+- New `list_models` Tauri command; frontend calls it once at startup
+  (`refreshModels`, not awaited — doesn't block on a network round-trip).
+- `FALLBACK_MODELS` in main.js is now ONLY the offline/no-key safety net,
+  clearly commented as such. Current as of 2026-07-30: Fable 5, Opus 5,
+  Sonnet 5, Opus 4.8, Opus 4.7, Sonnet 4.6, Opus 4.6, Opus 4.5, Haiku 4.5,
+  Sonnet 4.5. Deliberately excluded: Opus 4.1 (deprecated, retires
+  2026-08-05 — one week out, not worth shipping).
+- Default model changed Sonnet 4.6 -> **Sonnet 5**.
+- 2 new Rust tests (22 total passing): label-stripping + effort-extraction
+  against a realistic fixture, and garbage-input tolerance.
+
+**Effort selection — de-footgunned.** The capitalization bug from
+2026-07-02 (display change silently broke the API value) got a structural
+fix, not a patch: `effortChoice` is now ALWAYS canonical lowercase
+end-to-end; a `EFFORT_LABELS` map handles display-only capitalization.
+Old localStorage values from before this change are normalized on read.
+This class of bug is now impossible, not just fixed-for-now.
+
+**Model picker UI — cycling replaced with a dropdown.** Click-to-cycle
+was fine for 4 models, unusable for 10+. New `.model-menu`: scrollable
+list anchored above the composer, checkmark on current selection, "no
+effort" tag on models without effort support, closes on outside-click or
+Escape. Model choice now persists (`localStorage`, keyed by model ID —
+NOT index, since index would silently point at a different model once
+the list is dynamic and can reorder).
+
+**Auto-updater — explained + activated.** Brett asked what determines
+where/when it updates: endpoint is hardcoded in tauri.conf.json pointing
+at `releases/latest/download/latest.json`; checks once at startup only
+(no polling); download/install requires the user to click the banner;
+every artifact is Ed25519-signed against the key at
+`~/.tauri/mini-for-claude.key`, app refuses anything it can't verify.
+**Discovered v0.2.0 was still a GitHub DRAFT** — `/releases/latest/`
+only resolves published releases, so the updater had been silently
+finding nothing this whole time. Published v0.2.0 via `gh release edit
+--draft=false` to give the updater a real baseline, then bumped to
+**v0.2.1** (this session's work) specifically to give Brett a live,
+end-to-end demo: install v0.2.0 for real, watch v0.2.1 get discovered
+and offered as an update.
+
 ### Session 2026-06-12 (part 3) — first real API contact + keyring lands
 
 **The $5 gauntlet (worth recording for the comedy):**

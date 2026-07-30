@@ -35,6 +35,17 @@ pub async fn send_chat(
     .await
 }
 
+/// The account's available models, newest first, with per-model effort
+/// capabilities. The frontend calls this at startup and falls back to its
+/// own baked-in list if it fails (offline, no key yet, etc.).
+#[tauri::command]
+pub async fn list_models() -> Result<Vec<crate::anthropic::ModelInfo>, String> {
+    let api_key = crate::secrets::load()
+        .or_else(|| std::env::var("ANTHROPIC_API_KEY").ok())
+        .ok_or("No API key configured.")?;
+    crate::anthropic::list_models(api_key).await
+}
+
 // ---------- Sessions ----------
 
 #[tauri::command]

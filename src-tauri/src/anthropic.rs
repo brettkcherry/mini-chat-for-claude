@@ -13,7 +13,11 @@ use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 
 const API_URL: &str = "https://api.anthropic.com/v1/messages";
+const MODELS_URL: &str = "https://api.anthropic.com/v1/models?limit=100";
 const ANTHROPIC_VERSION: &str = "2023-06-01";
+
+/// Effort levels in the order the UI should offer them, weakest first.
+const EFFORT_LEVELS: [&str; 5] = ["low", "medium", "high", "xhigh", "max"];
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Message {
@@ -168,6 +172,101 @@ where
     Ok(())
 }
 
+/// One model as the picker needs it. `efforts` holds canonical lowercase
+/// API values ("low", "xhigh", ...) — presentation casing is the
+/// frontend's business.
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct ModelInfo {
+    pub id: String,
+    pub label: String,
+    pub efforts: Vec<String>,
+}
+
+/// Fetch the account's available models from `/v1/models`.
+///
+/// This exists so the picker never goes stale: the endpoint reports both
+/// the current model IDs and each model's exact effort capabilities, which
+/// is otherwise a hardcoded table that rots every few weeks (it already
+/// rotted twice — Opus 4.7 -> 4.8 -> 5). Retired models drop off this list
+/// automatically; new ones appear without an app update.
+pub async fn list_models(api_key: String) -> Result<Vec<ModelInfo>, String> {
+    let client = reqwest::Client::new();
+    let res = client
+        .get(MODELS_URL)
+        .header("x-api-key", &api_key)
+        .header("anthropic-version", ANTHROPIC_VERSION)
+        .send()
+        .await
+        .map_err(|e| format!("network error: {e}"))?;
+
+    let status = res.status();
+    if !status.is_success() {
+        let text = res.text().await.unwrap_or_default();
+        return Err(format!("api error {status}: {text}"));
+    }
+
+    let body: serde_json::Value = res
+        .json()
+        .await
+        .map_err(|e| format!("models parse error: {e}"))?;
+
+    Ok(parse_models(&body))
+}
+
+/// Split out from the request so it's unit-testable against a fixture.
+fn parse_models(body: &serde_json::Value) -> Vec<ModelInfo> {
+    let Some(data) = body.get("data").and_then(|d| d.as_array()) else {
+        return Vec::new();
+    };
+
+    data.iter()
+        .filter_map(|m| {
+            let id = m.get("id").and_then(|v| v.as_str())?;
+
+            // Claude Mythos is invitation-only (Project Glasswing). If an
+            // account can't use it, showing it in the picker is a trap.
+            if id.contains("mythos") {
+                return None;
+            }
+
+            let display = m.get("display_name").and_then(|v| v.as_str()).unwrap_or(id);
+            // The badge is ~70px wide: "Claude Sonnet 5" -> "Sonnet 5".
+            let label = display
+                .strip_prefix("Claude ")
+                .unwrap_or(display)
+                .to_string();
+
+            let effort = m.pointer("/capabilities/effort");
+            let effort_supported = effort
+                .and_then(|e| e.get("supported"))
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+
+            let efforts = if effort_supported {
+                EFFORT_LEVELS
+                    .iter()
+                    .filter(|lvl| {
+                        effort
+                            .and_then(|e| e.get(*lvl))
+                            .and_then(|l| l.get("supported"))
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false)
+                    })
+                    .map(|lvl| lvl.to_string())
+                    .collect()
+            } else {
+                Vec::new()
+            };
+
+            Some(ModelInfo {
+                id: id.to_string(),
+                label,
+                efforts,
+            })
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -295,5 +394,64 @@ mod tests {
         assert!(v.get("output_config").is_none());
         assert_eq!(v["stream"], true);
         assert!(v["max_tokens"].is_number());
+    }
+
+    /// Fixture mirrors the real /v1/models response shape.
+    #[test]
+    fn parse_models_extracts_labels_and_effort_levels() {
+        let body = serde_json::json!({
+            "data": [
+                {
+                    "type": "model",
+                    "id": "claude-sonnet-5",
+                    "display_name": "Claude Sonnet 5",
+                    "capabilities": {
+                        "effort": {
+                            "supported": true,
+                            "low": { "supported": true },
+                            "medium": { "supported": true },
+                            "high": { "supported": true },
+                            "xhigh": { "supported": false },
+                            "max": { "supported": true }
+                        }
+                    }
+                },
+                {
+                    "type": "model",
+                    "id": "claude-haiku-4-5-20251001",
+                    "display_name": "Claude Haiku 4.5",
+                    "capabilities": { "effort": { "supported": false } }
+                },
+                {
+                    "type": "model",
+                    "id": "claude-mythos-5",
+                    "display_name": "Claude Mythos 5",
+                    "capabilities": { "effort": { "supported": true, "low": { "supported": true } } }
+                }
+            ],
+            "has_more": false
+        });
+
+        let models = parse_models(&body);
+
+        // Mythos filtered out (invitation-only).
+        assert_eq!(models.len(), 2);
+
+        // "Claude " prefix stripped for the narrow badge.
+        assert_eq!(models[0].label, "Sonnet 5");
+        // Unsupported level omitted, order preserved weakest-first.
+        assert_eq!(models[0].efforts, vec!["low", "medium", "high", "max"]);
+
+        // effort.supported == false yields no levels at all.
+        assert_eq!(models[1].label, "Haiku 4.5");
+        assert!(models[1].efforts.is_empty());
+    }
+
+    #[test]
+    fn parse_models_tolerates_garbage() {
+        assert!(parse_models(&serde_json::json!({})).is_empty());
+        assert!(parse_models(&serde_json::json!({ "data": "nope" })).is_empty());
+        // Entry with no id is skipped rather than panicking.
+        assert!(parse_models(&serde_json::json!({ "data": [{ "x": 1 }] })).is_empty());
     }
 }

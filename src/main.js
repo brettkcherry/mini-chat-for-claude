@@ -71,36 +71,74 @@ function applyOpacity(pct) {
 }
 
 // ---------- Model registry ----------
-// IDs and effort support verified against the live /v1/models response
-// (June 2026). Haiku doesn't support effort at all; Sonnet lacks xhigh.
-// Future-proofing idea: query /v1/models at startup instead of hardcoding.
-const MODELS = [
-  { label: "Fable 5", id: "claude-fable-5", efforts: ["Low", "Medium", "High", "xHigh", "Max"] },
-  { label: "Opus 4.8", id: "claude-opus-4-8", efforts: ["Low", "Medium", "High", "xHigh", "Max"] },
-  { label: "Sonnet 4.6", id: "claude-sonnet-4-6", efforts: ["Low", "Medium", "High", "Max"] },
+// The live list comes from the API at startup (see refreshModels) — the
+// /v1/models endpoint reports current IDs *and* each model's exact effort
+// capabilities, so the picker can't go stale and retired models drop off
+// on their own.
+//
+// This baked-in list is only the offline fallback: shown when there's no
+// key yet or the fetch fails. Verified against the docs 2026-07-30;
+// newest first. Deliberately omitted: Opus 4.1 (deprecated, retires
+// 2026-08-05) and Mythos 5 (invitation-only). Effort levels are canonical
+// lowercase API values.
+const FALLBACK_MODELS = [
+  { label: "Fable 5", id: "claude-fable-5", efforts: ["low", "medium", "high", "xhigh", "max"] },
+  { label: "Opus 5", id: "claude-opus-5", efforts: ["low", "medium", "high", "xhigh", "max"] },
+  { label: "Sonnet 5", id: "claude-sonnet-5", efforts: ["low", "medium", "high", "xhigh", "max"] },
+  { label: "Opus 4.8", id: "claude-opus-4-8", efforts: ["low", "medium", "high", "xhigh", "max"] },
+  { label: "Opus 4.7", id: "claude-opus-4-7", efforts: ["low", "medium", "high", "xhigh", "max"] },
+  { label: "Sonnet 4.6", id: "claude-sonnet-4-6", efforts: ["low", "medium", "high", "max"] },
+  { label: "Opus 4.6", id: "claude-opus-4-6", efforts: ["low", "medium", "high", "max"] },
+  { label: "Opus 4.5", id: "claude-opus-4-5-20251101", efforts: ["low", "medium", "high"] },
   { label: "Haiku 4.5", id: "claude-haiku-4-5-20251001", efforts: [] },
+  { label: "Sonnet 4.5", id: "claude-sonnet-4-5-20250929", efforts: [] },
 ];
-let modelIdx = 2; // default: Sonnet — best speed/cost balance for a widget
+
+let MODELS = FALLBACK_MODELS.slice();
+
+const DEFAULT_MODEL_ID = "claude-sonnet-5"; // best speed/intelligence balance
+let modelIdx = 0;
+
+/// Select by ID, not index — the list is dynamic, so a saved index would
+/// point at a different model whenever the lineup changes.
+function selectModelById(id) {
+  const i = MODELS.findIndex((m) => m.id === id);
+  modelIdx = i >= 0 ? i : 0;
+}
+selectModelById(localStorage.getItem("model") || DEFAULT_MODEL_ID);
 
 // ---------- Effort level ----------
-// "Auto" = don't send the field; the API picks its default. Persisted.
-let effortChoice = localStorage.getItem("effort") || "Auto";
+// Stored canonically lowercase ("auto" | "low" | ... | "xhigh" | "max")
+// and only capitalized for display. Keeping one canonical value avoids
+// the class of bug where a cosmetic relabel silently changes what gets
+// sent to the API.
+const EFFORT_LABELS = {
+  auto: "Auto",
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  xhigh: "xHigh",
+  max: "Max",
+};
+
+// Older builds persisted capitalized values — normalize on read.
+let effortChoice = (localStorage.getItem("effort") || "auto").toLowerCase();
 
 const effortEl = document.getElementById("effort-picker");
 
 function effortOptions() {
-  return ["Auto", ...MODELS[modelIdx].efforts];
+  return ["auto", ...(MODELS[modelIdx]?.efforts ?? [])];
 }
 
 function renderEffortBadge() {
-  const supported = MODELS[modelIdx].efforts.length > 0;
+  const supported = (MODELS[modelIdx]?.efforts ?? []).length > 0;
   effortEl.style.display = supported ? "" : "none";
   if (!supported) return;
   if (!effortOptions().includes(effortChoice)) {
-    effortChoice = "Auto"; // e.g. xhigh selected, then switched to Sonnet
+    effortChoice = "auto"; // e.g. xhigh selected, then switched to Sonnet 4.6
     localStorage.setItem("effort", effortChoice);
   }
-  effortEl.textContent = effortChoice;
+  effortEl.textContent = EFFORT_LABELS[effortChoice] ?? effortChoice;
 }
 
 effortEl.addEventListener("click", () => {
@@ -111,15 +149,65 @@ effortEl.addEventListener("click", () => {
 });
 
 function renderModelLabel() {
-  els.modelPicker.textContent = MODELS[modelIdx].label;
+  els.modelPicker.textContent = MODELS[modelIdx]?.label ?? "—";
   renderEffortBadge(); // effort options depend on the model
 }
 renderModelLabel();
 
+// Click-to-cycle worked for 4 models; with the full lineup (10+) it's a
+// dropdown. Anchored to the composer so it always sits directly above,
+// regardless of how tall the textarea has grown.
 els.modelPicker.addEventListener("click", () => {
-  modelIdx = (modelIdx + 1) % MODELS.length;
-  renderModelLabel();
+  if (document.querySelector(".model-menu")) {
+    closeModelMenu();
+  } else {
+    showModelMenu();
+  }
 });
+
+function closeModelMenu() {
+  document.querySelector(".model-menu")?.remove();
+}
+
+function showModelMenu() {
+  const menu = document.createElement("div");
+  menu.className = "model-menu";
+  menu.innerHTML = MODELS.map(
+    (m, i) => `
+      <button class="model-menu__row${i === modelIdx ? " is-current" : ""}" data-idx="${i}">
+        <span class="model-menu__name">${escapeHtml(m.label)}</span>
+        ${m.efforts.length === 0 ? '<span class="model-menu__note">no effort</span>' : ""}
+      </button>`
+  ).join("");
+
+  menu.addEventListener("click", (e) => {
+    const row = e.target.closest("[data-idx]");
+    if (!row) return;
+    modelIdx = parseInt(row.dataset.idx, 10);
+    localStorage.setItem("model", MODELS[modelIdx].id);
+    renderModelLabel();
+    closeModelMenu();
+  });
+
+  document.querySelector(".composer").appendChild(menu);
+  menu.querySelector(".is-current")?.scrollIntoView({ block: "nearest" });
+}
+
+/// Pull the live model list from the API. Silent no-op on failure — the
+/// fallback list is already in place, and a missing key surfaces its own
+/// error when the user actually sends something.
+async function refreshModels() {
+  try {
+    const live = await invoke("list_models");
+    if (!Array.isArray(live) || live.length === 0) return;
+    const currentId = MODELS[modelIdx]?.id;
+    MODELS = live;
+    selectModelById(localStorage.getItem("model") || currentId || DEFAULT_MODEL_ID);
+    renderModelLabel();
+  } catch (err) {
+    console.warn("model list fetch failed, using fallback:", err);
+  }
+}
 
 // ---------- Window controls ----------
 const appWindow = getCurrentWindow();
@@ -236,10 +324,11 @@ async function submit() {
     await invoke("send_chat", {
       model: MODELS[modelIdx].id,
       messages: history.slice(),
+      // effortChoice is already the canonical lowercase API value.
       effort:
-        effortChoice === "Auto" || MODELS[modelIdx].efforts.length === 0
+        effortChoice === "auto" || (MODELS[modelIdx]?.efforts ?? []).length === 0
           ? null
-          : effortChoice.toLowerCase(),
+          : effortChoice,
     });
     // No-op here: history commit happens in the 'stop' chunk handler so
     // we capture the final text from the bubble's accumulated content.
@@ -371,6 +460,19 @@ document.addEventListener("click", (e) => {
   ) {
     settings.remove();
   }
+  const modelMenu = document.querySelector(".model-menu");
+  if (
+    modelMenu &&
+    !modelMenu.contains(e.target) &&
+    !els.modelPicker.contains(e.target)
+  ) {
+    closeModelMenu();
+  }
+});
+
+// Escape closes the model dropdown (it's the only true popover).
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeModelMenu();
 });
 
 // ---------- New chat + sessions browser + export ----------
@@ -748,5 +850,8 @@ async function init() {
   if (alwaysOnTop) {
     appWindow.setAlwaysOnTop(true).catch(() => {});
   }
+  // Not awaited — the fallback list is already usable, so don't make
+  // startup wait on a network round-trip.
+  if (hasKey) refreshModels();
 }
 init();
