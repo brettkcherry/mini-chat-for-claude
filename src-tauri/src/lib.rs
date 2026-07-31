@@ -8,6 +8,7 @@ mod anthropic;
 mod commands;
 mod secrets;
 mod sessions;
+mod tray;
 mod window;
 
 use tauri::Manager;
@@ -24,6 +25,19 @@ fn toggle_shortcut() -> Shortcut {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // Enforce a single running instance. Must be the FIRST plugin
+        // registered (Tauri requirement — it needs to win the race before
+        // anything else does meaningful setup). Without this, launching
+        // the app a second time while it's already running hidden-in-tray
+        // (Start Menu, a taskbar pin, a desktop shortcut — any normal
+        // "open the app" gesture) spawns a competing process with its own
+        // window and its own tray icon, unaware of the first. That's what
+        // caused "taskbar and tray icon at the same time": two different
+        // processes, not one confused one. Now a second launch attempt
+        // just restores the existing instance instead.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            tray::show_window(app);
+        }))
         // Save/restore window position + size across sessions.
         // First launch: no state file → window.rs places explicitly.
         // Subsequent launches: plugin restores; we leave it alone.
@@ -40,18 +54,22 @@ pub fn run() {
                     if event.state() != ShortcutState::Pressed {
                         return;
                     }
+                    // Routed through tray::hide_window/show_window (not a
+                    // raw w.hide()/w.show()) so the summon shortcut keeps
+                    // the "window visible XOR tray icon present" invariant
+                    // exactly like the titlebar close button does.
                     if let Some(w) = app.get_webview_window("main") {
                         if w.is_visible().unwrap_or(false) {
-                            let _ = w.hide();
+                            tray::hide_window(app);
                         } else {
-                            let _ = w.show();
-                            let _ = w.set_focus();
+                            tray::show_window(app);
                         }
                     }
                 })
                 .build(),
         )
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(tray::TrayState::default())
         .setup(|app| {
             if let Some(main) = app.get_webview_window("main") {
                 window::apply_platform_chrome(&app.handle(), &main);
@@ -92,6 +110,8 @@ pub fn run() {
             commands::export_chat,
             commands::quit_app,
             commands::install_update,
+            commands::set_close_to_tray,
+            commands::handle_close,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Claude Mini");

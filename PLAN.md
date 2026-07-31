@@ -229,6 +229,187 @@ finding nothing this whole time. Published v0.2.0 via `gh release edit
 end-to-end demo: install v0.2.0 for real, watch v0.2.1 get discovered
 and offered as an update.
 
+**Updater confirmed working live** — Brett installed v0.2.0, relaunched,
+saw the banner, clicked it, watched it download/verify/install/restart
+into v0.2.1 with zero manual steps. First real proof the whole pipeline
+(tag -> CI -> signed release -> app self-discovers it) works end to end.
+
+**Same session, part 2 — pre-public-launch polish:**
+
+- **Version number in Settings.** `getVersion()` from `@tauri-apps/api/
+  app` reads tauri.conf.json's version field directly — no Rust command
+  needed. Awaited in `init()` (not fire-and-forget) so it's ready before
+  the UI is interactive; footer reads "Mini Chat for Claude v0.2.1",
+  degrades to just the name if the call ever fails. Added
+  `core:app:default` to capabilities/default.json.
+
+- **Light mode + System/Light/Dark toggle.** Full light palette added as
+  a `:root[data-theme="light"]` CSS block (warm off-white bg, dark
+  warm-brown text, same --accent orange in both themes so the brand color
+  never shifts). Found and fixed 4 spots that were hardcoded dark and
+  would've broken in light mode: the messages scrollbar, code-block
+  background, and the model dropdown menu — all now theme-aware CSS
+  variables (`--scrollbar-thumb`, `--code-bg`, `--menu-bg`).
+  - New Settings row cycles System -> Light -> Dark (same interaction
+    pattern as the effort pill). "System" follows `prefers-color-scheme`
+    live via a `matchMedia` change listener — flip the OS theme while the
+    app is open and it updates without a restart.
+  - **Default is "dark", not "system"**, deliberately — every screenshot
+    and the icon palette were tuned against dark, and existing users on a
+    light-OS machine shouldn't get silently switched on next launch.
+    Light is opt-in.
+  - The opacity slider (`applyOpacity`) no longer hardcodes dark RGB
+    triples — it reads `--bg-rgb`/`--bubble-user-rgb` via
+    `getComputedStyle`, which resolve differently per theme automatically.
+    Must be called AFTER `data-theme` is set, never before (see
+    `applyTheme()`, which sets the attribute then calls it).
+
+**Bug: dark mode broke, light mode was fine (caught on first local test
+build).** Root cause was a bad `Edit` call, not a design flaw: the
+original `old_string` match ended at `--danger: #ff6b6b;` mid-block, so
+the Geometry and Type declarations that followed it in the file
+(`--radius-window`, `--radius-bubble`, `--titlebar-h`, `--font-ui`,
+`--font-mono`, `--fs-msg`, `--lh-msg`) got silently swept into the NEW
+`:root[data-theme="light"]` block instead of staying in the base `:root`.
+Since those variables control layout dimensions and fonts — not
+colors — anything not in light mode (i.e. dark, the default) lost them
+entirely: no titlebar height, no border radius, browser-default fonts.
+The visual result (Brett's screenshot) looked like a barely-there,
+see-through app — text and buttons floating with the surrounding
+layout/background collapsed. Light mode "worked" for the wrong reason:
+it happened to be the ONLY theme with access to those variables.
+Lesson: when an `Edit`'s `old_string` doesn't include a block's closing
+brace, double check what unedited content between the match and that
+brace is about to end up inside the NEW block — read the surrounding
+lines, don't assume line-adjacency is safe. Fixed by moving Geometry/Type
+back into the base `:root` and leaving `:root[data-theme="light"]` with
+color tokens only. Caught before any real release shipped — this was the
+local v0.2.1 test build, never tagged/pushed.
+
+**Confirmed same session:** window position/size persistence was already
+shipped (`tauri-plugin-window-state`, since the "session persistence"
+milestone) — Brett asked, answer is yes, nothing new needed.
+
+**Dark mode fix confirmed working** by Brett after the rebuild. "Light
+mode is pretty" — his words. Both themes now verified good.
+
+**Close-to-tray, with real UX iteration (worth capturing the arc):**
+
+1. First pass: new tray.rs module — `TrayIcon` created lazily, held in
+   `Mutex<Option<TrayIcon>>` app state so it isn't dropped/removed
+   immediately after construction. Left-click restores + destroys the
+   icon; right-click shows a "Quit" menu item. Both the titlebar ✕ and
+   the global shortcut route through shared `hide_window()`/
+   `show_window()` so "window visible XOR tray icon present" is a
+   structural invariant, not just usual behavior — there's exactly one
+   function that creates the icon and exactly one that destroys it.
+   Setting defaulted OFF (opt-in), mirroring how every other setting this
+   session defaults to preserving prior behavior.
+   - API surface notes for next time: `Image::from_bytes()` needs the
+     `image-png` Cargo feature (or `image-ico`) — not on by default even
+     with `tray-icon` enabled. Icon embedded via
+     `include_bytes!("../icons/32x32.png")` rather than
+     `default_window_icon()`, to not depend on window-icon config
+     resolving the way I expected.
+   - Everything else (`MenuItem::with_id`, `Menu::with_items`,
+     `TrayIconBuilder` chain, `TrayIconEvent::Click` match,
+     `show_menu_on_left_click`, `event.id().as_ref()`) compiled correctly
+     on the first real attempt — Tauri 2.11's tray API matched what the
+     docs/memory suggested.
+
+2. Brett's follow-up (the actually important part): noticed that with
+   the OFF default, closing had **zero visible affordance anywhere** —
+   no taskbar entry, no tray icon, recoverable only by remembering
+   `Ctrl+Shift+Space`. Asked the right question: "what is left on after
+   close that makes keyboard shortcut opening possible?" Answer: hiding
+   a window is not quitting the process — the whole app (including the
+   registered shortcut listener) stays alive in the background; only
+   `app.exit()` (Shift+✕ / Quit button) actually ends that.
+
+3. Landed on a cleaner model than the original build: **the toggle
+   default flips to ON**, and its meaning becomes "what does ✕ do" —
+   ON (default) = hide-to-tray (recoverable via tray click or the
+   shortcut); OFF = ✕ **fully quits**, exactly like a normal Windows
+   app's close button, nothing left running, shortcut goes dead until
+   relaunched. New `tray::handle_close_button()` / `handle_close`
+   command owns that branch. The global shortcut deliberately does NOT
+   route through this function — it always just hides, since "dismiss
+   via shortcut" should always be recoverable via that same shortcut;
+   quitting the whole app from a dismiss keypress would be destructive
+   and surprising. `TrayState::default()` now constructs `enabled: true`
+   (manual `impl Default`, not `#[derive]`, specifically to set this).
+   Startup sync in JS changed from "only tell Rust if true" to "always
+   tell Rust" — both defaults being ON now means the one case that
+   actually needs syncing is a saved OFF, which the old
+   only-sync-if-true code would have silently ignored.
+
+4. Brett asked whether minimize should ALSO go to tray, given close now
+   does. Answer: no — kept deliberately distinct, matching Discord/Slack
+   convention. Minimize (—) = native taskbar minimize, one click/Alt-Tab
+   back. Close (✕) = tray-hide. Two buttons, two different promises;
+   collapsing them into one behavior would remove a useful distinction
+   for no real gain. No code change from this thread.
+
+**Icon replacement — compliance-driven, in progress.** Brett flagged
+(rightly, before going fully public) that a lettermark "c" in
+Anthropic's own orange-rust palette, on an app named "...for Claude," is
+real trademark/trade-dress exposure beyond what the README disclaimer
+covers — the icon is what people actually recognize, so it needs to
+stand apart visually, not just legally. Generated candidates in hues
+nowhere near Anthropic's ~15-20° orange (all via the same PowerShell +
+System.Drawing pipeline as the original icon round, saved to the
+gitignored `icon-drafts/`):
+- Speech bubble (teal, ~175°) — generic, zero letterform risk
+- Floating mini-window + live dot (plum, ~280°) — most specific to this
+  app's actual concept (a floating widget), arguably most "ownable"
+- "m" monogram for Mini, not Claude (slate blue, ~210°) — closest
+  continuity to the current design language Brett liked
+- Two overlapping bubbles (rose-pink, ~350°) — abstract, soft
+- **Brett's steer:** low-contrast, single-hue-family "chat window"
+  concept — two message-line pills (evidence of an ongoing conversation)
+  above a compose bar with a send arrow, directly echoing the app's own
+  composer UI rather than any generic chat symbol. Built in sage and
+  slate-blue variants, then iterated 3 more rounds on Brett's live
+  feedback (bubbles alternating left/right — mirrors the app's own CSS,
+  `.msg--user` right / `.msg--claude` left, which Brett landed on without
+  necessarily intending the parallel; bubbles brought closer to the bar
+  and to each other; compose bar widened/heightened/lowered to fill more
+  of the plate; bubbles sized up again). Approved as "peeeerfect" as of
+  `k`/`l` (icon-drafts/k_chatwindow_v4_*.png). Color (sage vs slate-blue)
+  and the taskbar-size legibility pass still pending before this becomes
+  the real app icon.
+
+**Two bugs from live tray testing, both fixed same session:**
+
+1. **"Taskbar and tray icon showing at the same time."** Root cause:
+   no single-instance enforcement. Opening the app via any normal OS
+   gesture (Start Menu, taskbar pin, desktop shortcut) while it was
+   already running hidden-in-tray spawned a competing SECOND process —
+   fresh window (new taskbar entry) from the new process, while the
+   ORIGINAL process's tray icon just sat there untouched, unaware
+   anything happened. Two processes, not one confused one. Fixed with
+   `tauri-plugin-single-instance`, registered as the FIRST plugin in the
+   builder chain (a hard Tauri requirement — it has to win the race
+   before anything else does meaningful setup). Its callback calls the
+   same `tray::show_window()` used everywhere else, so a second launch
+   attempt now just restores the existing instance.
+
+2. **Settings toggles (Always on top, Close to tray) didn't visually
+   flip on click — only showed the correct state after closing and
+   reopening Settings.** Brett caught the pattern precisely: "same with
+   always on top.. raw text is fine" — the ONE thing distinguishing the
+   broken two from the working one is that raw-mode's handler is fully
+   synchronous, while pin/tray both `await` an `invoke()` call before
+   touching the DOM. Root cause was ordering, not state: both handlers
+   read the shared outer variable and updated the switch's classList
+   *after* awaiting the backend round-trip, when the correct value was
+   already available synchronously (the assignment happens before the
+   first `await` inside the setter). Fixed by flipping the order in both
+   handlers: compute the next value, update the DOM immediately
+   (optimistic update), THEN kick off the `invoke()` — matches how
+   raw-mode already behaved, and is strictly more responsive regardless
+   of root cause.
+
 ### Session 2026-06-12 (part 3) — first real API contact + keyring lands
 
 **The $5 gauntlet (worth recording for the comedy):**

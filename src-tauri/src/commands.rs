@@ -81,6 +81,21 @@ pub fn quit_app(app: AppHandle) {
     app.exit(0);
 }
 
+/// Persist the "Close to tray" Settings toggle. Called once at startup to
+/// sync Rust with the saved preference, and again whenever the user
+/// flips the toggle.
+#[tauri::command]
+pub fn set_close_to_tray(app: AppHandle, enabled: bool) {
+    crate::tray::set_enabled(&app, enabled);
+}
+
+/// Titlebar ✕ click. Hides to tray if "close to tray" is on (default),
+/// otherwise fully quits — see tray::handle_close_button for the reasoning.
+#[tauri::command]
+pub fn handle_close(app: AppHandle) {
+    crate::tray::handle_close_button(&app);
+}
+
 /// Download and apply the pending update, then restart. Called from the
 /// update banner after the user opts in.
 #[tauri::command]

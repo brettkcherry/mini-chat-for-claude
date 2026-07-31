@@ -10,6 +10,7 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getVersion } from "@tauri-apps/api/app";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 
@@ -60,15 +61,48 @@ function applyRawMode() {
 // ---------- Background opacity ----------
 // Fades the window chrome, keeps text fully readable (background alpha
 // only, not whole-window opacity). Persisted; applied at startup.
+//
+// Reads --bg-rgb / --bubble-user-rgb (defined per-theme in styles.css)
+// via getComputedStyle rather than hardcoding a color here, so this
+// automatically tracks whichever theme is currently active — call this
+// AFTER data-theme is set on <html>, never before.
 let opacityPct = parseInt(localStorage.getItem("opacity") || "92", 10);
 function applyOpacity(pct) {
   opacityPct = Math.min(100, Math.max(30, pct));
   localStorage.setItem("opacity", String(opacityPct));
   const a = opacityPct / 100;
+  const style = getComputedStyle(document.documentElement);
+  const bgRgb = style.getPropertyValue("--bg-rgb").trim();
+  const bubbleRgb = style.getPropertyValue("--bubble-user-rgb").trim();
   const root = document.documentElement.style;
-  root.setProperty("--bg", `rgba(20, 20, 22, ${a})`);
-  root.setProperty("--bubble-user", `rgba(42, 42, 46, ${Math.min(1, a + 0.15)})`);
+  root.setProperty("--bg", `rgba(${bgRgb}, ${a})`);
+  root.setProperty("--bubble-user", `rgba(${bubbleRgb}, ${Math.min(1, a + 0.15)})`);
 }
+
+// ---------- Theme (System / Light / Dark) ----------
+// Default is "dark" (not "system") even for users who never touch this —
+// every screenshot and the icon palette were tuned against dark, so it
+// stays the baseline; light is opt-in, not a surprise switch for existing
+// users whose OS happens to be in light mode.
+let themeChoice = localStorage.getItem("theme") || "dark"; // "system"|"light"|"dark"
+const THEME_LABELS = { system: "System", light: "Light", dark: "Dark" };
+const prefersDarkMql = window.matchMedia("(prefers-color-scheme: dark)");
+
+function resolveTheme() {
+  return themeChoice === "system"
+    ? (prefersDarkMql.matches ? "dark" : "light")
+    : themeChoice;
+}
+
+function applyTheme() {
+  document.documentElement.dataset.theme = resolveTheme();
+  applyOpacity(opacityPct); // re-derive --bg/--bubble-user for the new theme
+}
+
+// Only matters while themeChoice === "system"; harmless otherwise.
+prefersDarkMql.addEventListener("change", () => {
+  if (themeChoice === "system") applyTheme();
+});
 
 // ---------- Model registry ----------
 // The live list comes from the API at startup (see refreshModels) — the
@@ -220,15 +254,31 @@ async function setAlwaysOnTop(v) {
   await appWindow.setAlwaysOnTop(v);
 }
 
+// Close-to-tray — defaults ON (opt-out, not opt-in): a hidden app with no
+// taskbar entry and no tray icon, recoverable only via a memorized
+// keyboard shortcut, is a discoverability trap for anyone but a power
+// user. Persisted, synced to Rust at startup and on toggle. Rust (tray.rs)
+// owns the actual hide/show + icon lifecycle so the "window open XOR tray
+// icon present" invariant holds no matter which entry point triggered it
+// (close button, global shortcut, tray click).
+let closeToTray = localStorage.getItem("closeToTray") !== "0";
+async function setCloseToTray(v) {
+  closeToTray = v;
+  localStorage.setItem("closeToTray", v ? "1" : "0");
+  await invoke("set_close_to_tray", { enabled: v }).catch(() => {});
+}
+
 els.min.addEventListener("click", () => appWindow.minimize());
 
 els.close.addEventListener("click", async (e) => {
-  // Plain click hides (summon back with Ctrl+Shift+Space).
-  // Shift+click fully quits the app.
+  // Plain click: tray-hide if "close to tray" is on, else a full quit —
+  // decided in Rust (handle_close), matching whatever's actually stored
+  // there rather than trusting this tab's local copy. Shift+click always
+  // force-quits regardless of the setting, as a fast escape hatch.
   if (e.shiftKey) {
     await invoke("quit_app");
   } else {
-    await appWindow.hide();
+    await invoke("handle_close");
   }
 });
 
@@ -642,6 +692,16 @@ function escapeHtml(s) {
   })[c]);
 }
 
+// ---------- App version ----------
+// Fetched once in init() (getVersion() reads tauri.conf.json's "version"
+// field, baked in at build time — no Rust command needed). Empty until
+// then; appVersionLabel() degrades gracefully either way.
+let appVersion = "";
+
+function appVersionLabel() {
+  return appVersion ? `Mini Chat for Claude v${appVersion}` : "Mini Chat for Claude";
+}
+
 // ---------- Settings ----------
 els.settings.addEventListener("click", () => {
   const existing = els.messages.querySelector(".settings-card");
@@ -663,9 +723,17 @@ function showSettingsCard() {
       <span>Always on top</span>
       <span class="settings-card__toggle ${alwaysOnTop ? "is-on" : ""}"></span>
     </div>
+    <div class="settings-card__row" data-set="tray">
+      <span>Close to tray</span>
+      <span class="settings-card__toggle ${closeToTray ? "is-on" : ""}"></span>
+    </div>
     <div class="settings-card__row" data-set="raw">
       <span>Raw text mode <span class="settings-card__hint">&lt;/&gt;</span></span>
       <span class="settings-card__toggle ${rawMode ? "is-on" : ""}"></span>
+    </div>
+    <div class="settings-card__row" data-set="theme">
+      <span>Theme</span>
+      <span class="settings-card__pill">${THEME_LABELS[themeChoice]}</span>
     </div>
     <div class="settings-card__row settings-card__row--slider">
       <span>Opacity</span>
@@ -673,13 +741,28 @@ function showSettingsCard() {
       <span class="settings-card__pct">${opacityPct}%</span>
     </div>
     <button class="settings-card__keybtn">API key…</button>
+    <div class="settings-card__version">${escapeHtml(appVersionLabel())}</div>
   `;
 
-  card.querySelector('[data-set="pin"]').addEventListener("click", async (ev) => {
-    await setAlwaysOnTop(!alwaysOnTop);
+  card.querySelector('[data-set="pin"]').addEventListener("click", (ev) => {
+    // Flip the switch immediately (optimistic update) — don't wait on the
+    // invoke() round trip first. Previously this awaited setAlwaysOnTop()
+    // before touching the DOM, so the toggle only ever visually updated
+    // on the NEXT render (i.e. reopening Settings), never on the click
+    // itself.
+    const next = !alwaysOnTop;
     ev.currentTarget
       .querySelector(".settings-card__toggle")
-      .classList.toggle("is-on", alwaysOnTop);
+      .classList.toggle("is-on", next);
+    setAlwaysOnTop(next);
+  });
+
+  card.querySelector('[data-set="tray"]').addEventListener("click", (ev) => {
+    const next = !closeToTray;
+    ev.currentTarget
+      .querySelector(".settings-card__toggle")
+      .classList.toggle("is-on", next);
+    setCloseToTray(next);
   });
 
   card.querySelector('[data-set="raw"]').addEventListener("click", (ev) => {
@@ -689,6 +772,15 @@ function showSettingsCard() {
     ev.currentTarget
       .querySelector(".settings-card__toggle")
       .classList.toggle("is-on", rawMode);
+  });
+
+  card.querySelector('[data-set="theme"]').addEventListener("click", (ev) => {
+    const order = ["system", "light", "dark"];
+    themeChoice = order[(order.indexOf(themeChoice) + 1) % order.length];
+    localStorage.setItem("theme", themeChoice);
+    applyTheme();
+    ev.currentTarget.querySelector(".settings-card__pill").textContent =
+      THEME_LABELS[themeChoice];
   });
 
   const slider = card.querySelector(".settings-card__slider");
@@ -846,9 +938,17 @@ async function init() {
     els.input.focus();
   }
   applyRawMode();
-  applyOpacity(opacityPct);
+  applyTheme(); // sets data-theme, then calls applyOpacity for us
   if (alwaysOnTop) {
     appWindow.setAlwaysOnTop(true).catch(() => {});
+  }
+  // Always sync, not just when true: Rust's own default is also "on" now,
+  // so the one case that actually needs telling is a saved "off".
+  invoke("set_close_to_tray", { enabled: closeToTray }).catch(() => {});
+  try {
+    appVersion = await getVersion();
+  } catch {
+    // stays "" — appVersionLabel() degrades gracefully
   }
   // Not awaited — the fallback list is already usable, so don't make
   // startup wait on a network round-trip.

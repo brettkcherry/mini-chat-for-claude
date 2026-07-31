@@ -7,7 +7,12 @@
    ============================================================ */
 
 :root {
-  /* Color tokens — dark theme first, light follows OS later */
+  /* Color tokens — dark theme (the default; light lives in the
+     [data-theme="light"] block below). JS sets data-theme on <html>
+     based on the Settings > Theme choice (System/Light/Dark) — see
+     resolveTheme()/applyTheme() in main.js. Default stays "dark" even
+     for users who never touch the setting, since that's the look every
+     screenshot and the icon palette were tuned against; light is opt-in. */
   --bg: rgba(20, 20, 22, 0.92);
   --bg-elev: rgba(255, 255, 255, 0.04);
   --bg-elev-strong: rgba(255, 255, 255, 0.08);
@@ -15,11 +20,20 @@
   --text: #ececec;
   --text-dim: #9a9a9a;
   --text-faint: #6a6a6a;
-  --accent: #c97a4a;       /* Claude warm */
+  --accent: #c97a4a;       /* Claude warm — constant across both themes */
   --accent-soft: rgba(201, 122, 74, 0.18);
   --bubble-user: #2a2a2e;
   --bubble-claude: transparent;
   --danger: #ff6b6b;
+  --code-bg: rgba(0, 0, 0, 0.35);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.12);
+  --menu-bg: #1e1e21;
+
+  /* Base RGB triples the opacity slider interpolates alpha into
+     (applyOpacity() in main.js) — must track --bg/--bubble-user above,
+     since those are overwritten inline once the slider moves. */
+  --bg-rgb: 20, 20, 22;
+  --bubble-user-rgb: 42, 42, 46;
 
   /* Geometry */
   /* Matches Windows 11's own system corner radius (DWMWCP_ROUND, ~8px
@@ -37,6 +51,32 @@
   --font-mono: ui-monospace, "JetBrains Mono", "Cascadia Code", Consolas, monospace;
   --fs-msg: 13.5px;
   --lh-msg: 1.55;
+}
+
+/* Light overrides — color tokens only. Geometry/type stay in the base
+   :root above; they don't change per theme, and MUST NOT be duplicated
+   in here (they were, briefly, by mistake — see PLAN.md — which broke
+   dark mode entirely: --titlebar-h/--radius-window/fonts only existed
+   under [data-theme="light"], so anything not in light mode lost its
+   layout and fell back to browser defaults). */
+:root[data-theme="light"] {
+  --bg: rgba(255, 251, 247, 0.94);
+  --bg-elev: rgba(0, 0, 0, 0.035);
+  --bg-elev-strong: rgba(0, 0, 0, 0.065);
+  --border: rgba(0, 0, 0, 0.1);
+  --text: #2b2220;
+  --text-dim: #7d7068;
+  --text-faint: #a89c93;
+  --accent: #c97a4a;
+  --accent-soft: rgba(201, 122, 74, 0.14);
+  --bubble-user: #efe1d6;
+  --bubble-claude: transparent;
+  --danger: #c9433a;
+  --code-bg: rgba(0, 0, 0, 0.05);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.15);
+  --menu-bg: #fffaf6;
+  --bg-rgb: 255, 251, 247;
+  --bubble-user-rgb: 239, 225, 214;
 }
 
 * {
@@ -141,13 +181,13 @@ html, body {
   gap: 12px;
   user-select: text;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 .messages::-webkit-scrollbar {
   width: 8px;
 }
 .messages::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--scrollbar-thumb);
   border-radius: 4px;
 }
 
@@ -225,7 +265,7 @@ html, body {
   padding: 1px 5px;
 }
 .msg--claude pre {
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--code-bg);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 10px 12px;
@@ -351,7 +391,7 @@ html, body {
   max-height: 240px;
   overflow-y: auto;
   padding: 4px;
-  background: #1e1e21;
+  background: var(--menu-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-control);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
@@ -737,6 +777,24 @@ html, body {
 }
 .settings-card__keybtn:hover {
   border-color: var(--accent);
+}
+.settings-card__pill {
+  flex: none;
+  font-size: 10.5px;
+  color: var(--text-dim);
+  padding: 3px 10px;
+  background: var(--bg-elev-strong);
+  border-radius: var(--radius-control);
+  white-space: nowrap;
+}
+.settings-card__version {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 9.5px;
+  color: var(--text-faint);
+  text-align: center;
+  cursor: default;
 }
 
 /* ---------- Update banner ---------- */
