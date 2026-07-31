@@ -46,6 +46,10 @@
     "active": true,
     "targets": ["nsis"],
     "createUpdaterArtifacts": true,
+    "publisher": "Brett Cherry",
+    "copyright": "Copyright © 2026 Brett Cherry",
+    "licenseFile": "../LICENSE",
+    "resources": ["../NOTICE.md", "../licenses/*"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
