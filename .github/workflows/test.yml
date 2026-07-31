@@ -1,0 +1,71 @@
+name: Test
+
+# Runs on every push and PR so a broken build or a known-vulnerable
+# dependency can't reach a version tag undetected. release.yml has no gate
+# of its own — it just builds and ships whatever the tag points at.
+#
+# Three independent jobs:
+#   - rust-tests:  cargo test on Windows (the app only ships for Windows,
+#                  and keyring's windows-native feature makes Windows the
+#                  only runner that reflects production).
+#   - npm-audit:   fails on any moderate+ vulnerability in a dependency
+#                  that actually ships (--omit=dev excludes vite/postcss,
+#                  which are build-time only and never reach users).
+#   - cargo-audit: rustsec/audit-check reads Cargo.lock against the
+#                  RustSec advisory database directly — a different data
+#                  source than npm's, and the ~510-crate Rust tree has
+#                  never been checked against it before this workflow.
+#                  RUSTSEC-2026-0185 (quinn-proto) is ignored: it's an
+#                  orphaned Cargo.lock entry nothing in this project's
+#                  dependency graph actually references (verified via
+#                  `cargo tree --target all -i quinn-proto` -> nothing to
+#                  print). Fixing it in place would force a rand 0.9->0.10
+#                  major-version bump repo-wide to satisfy a package
+#                  nothing calls. A future `cargo update` sweep will prune
+#                  it naturally — drop this line once that lands.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  rust-tests:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: src-tauri
+
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
+
+  npm-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+
+      - run: npm ci
+
+      # --omit=dev: vite/postcss are build-time only and never ship in the
+      # installer. A moderate+ finding in dompurify/marked/@tauri-apps/api
+      # fails the build; dev-only findings don't block.
+      - run: npm audit --omit=dev --audit-level=moderate
+
+  cargo-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: src-tauri
+          ignore: RUSTSEC-2026-0185
