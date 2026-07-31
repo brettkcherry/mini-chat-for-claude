@@ -42,6 +42,27 @@ pub fn load() -> Option<String> {
     entry().ok()?.get_password().ok()
 }
 
+/// Dev-only convenience: take the key from `ANTHROPIC_API_KEY`.
+///
+/// Compiled out of release builds on purpose. In a shipped app this is an
+/// injection point rather than a convenience — anything able to control the
+/// process environment (a tampered shortcut, a wrapper script, a parent
+/// process) could supply its own key and silently bill the user's traffic to,
+/// and expose their conversations to, someone else's account. The credential
+/// store requires a deliberate act by the user; an env var does not.
+///
+/// `tauri dev` builds keep the shortcut.
+pub fn env_fallback() -> Option<String> {
+    #[cfg(debug_assertions)]
+    {
+        std::env::var("ANTHROPIC_API_KEY").ok()
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        None
+    }
+}
+
 pub fn delete() -> Result<(), String> {
     delete_entry(&entry()?)
 }

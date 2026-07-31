@@ -128,6 +128,7 @@ pub fn run() {
             commands::list_sessions,
             commands::load_session,
             commands::delete_session,
+            commands::delete_all_sessions,
             commands::export_chat,
             commands::quit_app,
             commands::install_update,

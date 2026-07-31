@@ -13,8 +13,8 @@ pub fn ping(name: &str) -> String {
 /// Stream a chat turn from Anthropic. Emits `chat-chunk` events to the
 /// frontend for each delta and a final one with `stop: true`.
 ///
-/// Key resolution order: OS credential store first, `ANTHROPIC_API_KEY`
-/// env var as a dev-convenience fallback.
+/// Key resolution order: OS credential store first, then `ANTHROPIC_API_KEY`
+/// — but only in debug builds. See `secrets::env_fallback`.
 #[tauri::command]
 pub async fn send_chat(
     app: AppHandle,
@@ -23,7 +23,7 @@ pub async fn send_chat(
     effort: Option<String>,
 ) -> Result<(), String> {
     let api_key = crate::secrets::load()
-        .or_else(|| std::env::var("ANTHROPIC_API_KEY").ok())
+        .or_else(crate::secrets::env_fallback)
         .ok_or_else(|| {
             "No API key configured. Click the key button in the title bar to add one.".to_string()
         })?;
@@ -41,7 +41,7 @@ pub async fn send_chat(
 #[tauri::command]
 pub async fn list_models() -> Result<Vec<crate::anthropic::ModelInfo>, String> {
     let api_key = crate::secrets::load()
-        .or_else(|| std::env::var("ANTHROPIC_API_KEY").ok())
+        .or_else(crate::secrets::env_fallback)
         .ok_or("No API key configured.")?;
     crate::anthropic::list_models(api_key).await
 }
@@ -66,6 +66,13 @@ pub fn load_session(app: AppHandle, id: String) -> Result<crate::sessions::Sessi
 #[tauri::command]
 pub fn delete_session(app: AppHandle, id: String) -> Result<(), String> {
     crate::sessions::delete(&app, &id)
+}
+
+/// Erase all saved chat history, returning how many sessions were removed.
+/// Irreversible — the frontend gates this behind an explicit confirm step.
+#[tauri::command]
+pub fn delete_all_sessions(app: AppHandle) -> Result<usize, String> {
+    crate::sessions::delete_all(&app)
 }
 
 /// Write the transcript to Documents/Claude Mini/, return the full path.
@@ -120,10 +127,10 @@ pub fn save_api_key(key: String) -> Result<(), String> {
     crate::secrets::save(&key)
 }
 
-/// Is a key available (keychain or env fallback)?
+/// Is a key available (keychain, or the debug-only env fallback)?
 #[tauri::command]
 pub fn has_api_key() -> bool {
-    crate::secrets::load().is_some() || std::env::var("ANTHROPIC_API_KEY").is_ok()
+    crate::secrets::load().is_some() || crate::secrets::env_fallback().is_some()
 }
 
 #[derive(serde::Serialize)]
@@ -132,7 +139,8 @@ pub struct KeyStatus {
     pub stored: bool,
     /// Last 4 characters of the stored key, for identification.
     pub suffix: Option<String>,
-    /// ANTHROPIC_API_KEY env var is present (dev fallback).
+    /// ANTHROPIC_API_KEY is being used. Always false in release builds — the
+    /// fallback is compiled out there, so the UI never advertises it.
     pub env_fallback: bool,
 }
 
@@ -147,7 +155,7 @@ pub fn api_key_status() -> KeyStatus {
     KeyStatus {
         stored: stored.is_some(),
         suffix,
-        env_fallback: std::env::var("ANTHROPIC_API_KEY").is_ok(),
+        env_fallback: crate::secrets::env_fallback().is_some(),
     }
 }
 

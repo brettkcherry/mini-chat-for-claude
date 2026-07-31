@@ -680,6 +680,27 @@ html, body {
   color: var(--text-faint);
   padding: 10px 4px;
 }
+/* Sits quiet until armed — it's irreversible, so it shouldn't invite a
+   casual click, but it must be unmistakable once it's one click from firing. */
+.sessions__danger {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--text-faint);
+  font-size: 10.5px;
+  padding: 8px 0 2px;
+  cursor: pointer;
+  width: 100%;
+  text-align: center;
+}
+.sessions__danger:hover {
+  color: var(--danger);
+}
+.sessions__danger.is-armed {
+  color: var(--danger);
+  font-weight: 600;
+}
+
 .sessions__quit {
   appearance: none;
   background: transparent;

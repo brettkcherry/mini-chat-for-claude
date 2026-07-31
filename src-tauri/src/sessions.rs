@@ -78,21 +78,67 @@ pub fn list(app: &AppHandle) -> Result<Vec<SessionMeta>, String> {
         let Ok(s) = serde_json::from_str::<Session>(&text) else {
             continue; // corrupt file — skip
         };
-        metas.push(SessionMeta {
-            id: s.id,
-            title: s.title,
-            updated_ms: s.updated_ms,
-            message_count: s.messages.len(),
-        });
+        if let Some(meta) = meta_for_listing(s) {
+            metas.push(meta);
+        }
     }
     metas.sort_by(|a, b| b.updated_ms.cmp(&a.updated_ms));
     Ok(metas)
+}
+
+/// Turn a parsed session into its listing entry, or drop it.
+///
+/// The id travels straight into the sessions list as an HTML attribute, and
+/// these files are user-editable by design (the README invites people to
+/// inspect and back them up). `save` can only ever write a validated id, but
+/// nothing stops a hand-edited or restored file from carrying something else —
+/// so re-validate on the way out rather than trusting the file's contents.
+/// Split out from `list` so this can be tested without an `AppHandle`.
+fn meta_for_listing(s: Session) -> Option<SessionMeta> {
+    if validate_session_id(&s.id).is_err() {
+        return None;
+    }
+    Some(SessionMeta {
+        message_count: s.messages.len(),
+        id: s.id,
+        title: s.title,
+        updated_ms: s.updated_ms,
+    })
 }
 
 pub fn load(app: &AppHandle, id: &str) -> Result<Session, String> {
     let path = session_path(app, id)?;
     let text = fs::read_to_string(&path).map_err(|e| format!("read failed: {e}"))?;
     serde_json::from_str(&text).map_err(|e| format!("parse failed: {e}"))
+}
+
+/// Delete every saved session, returning how many files were removed.
+///
+/// Scoped to `*.json` directly inside the sessions directory: this is a
+/// user-facing "delete all my chat history" action, so it must not become a
+/// recursive wipe of anything else that happens to live nearby.
+pub fn delete_all(app: &AppHandle) -> Result<usize, String> {
+    delete_all_in(&sessions_dir(app)?)
+}
+
+/// The scanning half of `delete_all`, split out so the blast radius can be
+/// tested against a real directory without an `AppHandle`.
+fn delete_all_in(dir: &std::path::Path) -> Result<usize, String> {
+    let entries = fs::read_dir(dir).map_err(|e| format!("read dir failed: {e}"))?;
+    let mut removed = 0usize;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_file() || path.extension().and_then(|e| e.to_str()) != Some("json") {
+            continue;
+        }
+        match fs::remove_file(&path) {
+            Ok(()) => removed += 1,
+            // Something else got there first — that's the outcome we wanted.
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(format!("delete failed for {}: {e}", path.display())),
+        }
+    }
+    Ok(removed)
 }
 
 pub fn delete(app: &AppHandle, id: &str) -> Result<(), String> {
@@ -221,6 +267,83 @@ mod tests {
         assert_eq!(round.messages.len(), session.messages.len());
         assert_eq!(round.messages[0].role, session.messages[0].role);
         assert_eq!(round.messages[0].content, session.messages[0].content);
+    }
+
+    fn session_with_id(id: &str) -> Session {
+        Session {
+            id: id.to_string(),
+            title: "Test".to_string(),
+            created_ms: 1000,
+            updated_ms: 2000,
+            model: "claude-x".to_string(),
+            messages: vec![Message {
+                role: "user".to_string(),
+                content: "hi".to_string(),
+            }],
+        }
+    }
+
+    #[test]
+    fn meta_for_listing_keeps_valid_ids() {
+        let meta = meta_for_listing(session_with_id("s1770000000000"))
+            .expect("a normal id should be listed");
+        assert_eq!(meta.id, "s1770000000000");
+        assert_eq!(meta.message_count, 1);
+    }
+
+    /// A hand-edited session file must not be able to smuggle markup into the
+    /// sessions list, where the id is interpolated into an HTML attribute.
+    #[test]
+    fn meta_for_listing_drops_ids_that_could_break_out_of_an_attribute() {
+        for bad in [
+            r#"s1" onclick="alert(1)"#,
+            "s1'><script>alert(1)</script>",
+            "../../etc/passwd",
+            "s1 s2",
+            "",
+        ] {
+            assert!(
+                meta_for_listing(session_with_id(bad)).is_none(),
+                "expected id {bad:?} to be dropped from the listing"
+            );
+        }
+    }
+
+    #[test]
+    fn delete_all_in_removes_only_session_json() {
+        let dir = std::env::temp_dir().join(format!(
+            "claude-mini-delete-all-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+
+        fs::write(dir.join("s1.json"), "{}").unwrap();
+        fs::write(dir.join("s2.json"), "{}").unwrap();
+        // Neither of these is chat history, so neither should be touched.
+        fs::write(dir.join("notes.txt"), "keep me").unwrap();
+        fs::create_dir_all(dir.join("nested")).unwrap();
+        fs::write(dir.join("nested").join("s3.json"), "{}").unwrap();
+
+        let removed = delete_all_in(&dir).expect("delete_all_in should succeed");
+
+        assert_eq!(removed, 2, "only the two top-level .json files count");
+        assert!(!dir.join("s1.json").exists());
+        assert!(!dir.join("s2.json").exists());
+        assert!(dir.join("notes.txt").exists(), "non-json must survive");
+        assert!(
+            dir.join("nested").join("s3.json").exists(),
+            "must not recurse into subdirectories"
+        );
+
+        // An already-empty directory is a no-op, not an error.
+        fs::remove_file(dir.join("notes.txt")).unwrap();
+        fs::remove_dir_all(dir.join("nested")).unwrap();
+        assert_eq!(delete_all_in(&dir).unwrap(), 0);
+
+        fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

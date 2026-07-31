@@ -571,13 +571,18 @@ async function showSessionsCard() {
         minute: "2-digit",
       });
       const current = m.id === sessionId ? " sessions__row--current" : "";
+      // ids are escaped like any other untrusted value. The backend already
+      // drops non-alphanumeric ids from the listing, so this should never have
+      // anything to do — it's here so that the guarantee doesn't rest on a
+      // single check in another language.
+      const id = escapeHtml(m.id);
       return `
-        <div class="sessions__row${current}" data-id="${m.id}">
+        <div class="sessions__row${current}" data-id="${id}">
           <div class="sessions__rowmain">
             <div class="sessions__rowtitle">${escapeHtml(m.title)}</div>
             <div class="sessions__rowmeta">${when} · ${m.messageCount} messages</div>
           </div>
-          <button class="sessions__del" data-del="${m.id}" title="Delete session">✕</button>
+          <button class="sessions__del" data-del="${id}" title="Delete session">✕</button>
         </div>`;
     })
     .join("");
@@ -590,15 +595,56 @@ async function showSessionsCard() {
     </div>
     <div class="sessions__status"></div>
     <div class="sessions__list">${rows || '<div class="sessions__empty">No saved sessions yet.</div>'}</div>
+    <button class="sessions__danger" data-act="delete-all">Delete all chat history</button>
     <button class="sessions__quit" data-act="quit">Quit Mini Chat for Claude</button>
   `;
 
   const status = card.querySelector(".sessions__status");
 
+  // "Delete all" is irreversible and sits one stray click away from the
+  // per-session ✕ buttons, so it arms on the first click and only fires on the
+  // second. Disarms itself after a few seconds so it can't stay hot.
+  const DELETE_ALL_LABEL = "Delete all chat history";
+  let armTimer = null;
+  function disarmDeleteAll() {
+    const btn = card.querySelector('[data-act="delete-all"]');
+    if (!btn) return;
+    clearTimeout(armTimer);
+    armTimer = null;
+    delete btn.dataset.armed;
+    btn.classList.remove("is-armed");
+    btn.textContent = DELETE_ALL_LABEL;
+  }
+
   card.addEventListener("click", async (e) => {
     const act = e.target.closest("[data-act]")?.dataset.act;
-    const del = e.target.closest("[data-del]")?.dataset.del;
+    const delBtn = e.target.closest("[data-del]");
     const row = e.target.closest(".sessions__row");
+
+    // Any click that isn't the armed button itself cancels the pending wipe.
+    if (act !== "delete-all") disarmDeleteAll();
+
+    if (act === "delete-all") {
+      const btn = e.target.closest('[data-act="delete-all"]');
+      if (btn.dataset.armed !== "1") {
+        btn.dataset.armed = "1";
+        btn.classList.add("is-armed");
+        btn.textContent = "Click again to permanently delete every saved chat";
+        armTimer = setTimeout(disarmDeleteAll, 5000);
+        return;
+      }
+      try {
+        const removed = await invoke("delete_all_sessions");
+        card.querySelector(".sessions__list").innerHTML =
+          '<div class="sessions__empty">No saved sessions yet.</div>';
+        status.textContent =
+          removed === 1 ? "✓ Deleted 1 saved chat" : `✓ Deleted ${removed} saved chats`;
+      } catch (err) {
+        status.textContent = String(err);
+      }
+      disarmDeleteAll();
+      return;
+    }
 
     if (act === "quit") {
       await invoke("quit_app");
@@ -629,11 +675,13 @@ async function showSessionsCard() {
       }
       return;
     }
-    if (del) {
+    if (delBtn) {
       e.stopPropagation();
       try {
-        await invoke("delete_session", { id: del });
-        card.querySelector(`.sessions__row[data-id="${del}"]`)?.remove();
+        await invoke("delete_session", { id: delBtn.dataset.del });
+        // Walk up from the button that was clicked rather than building a
+        // selector out of the id — no interpolation, nothing to escape.
+        delBtn.closest(".sessions__row")?.remove();
         if (!card.querySelector(".sessions__row")) {
           card.querySelector(".sessions__list").innerHTML =
             '<div class="sessions__empty">No saved sessions yet.</div>';
