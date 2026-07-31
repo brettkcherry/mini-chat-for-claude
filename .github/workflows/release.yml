@@ -9,6 +9,14 @@ name: Release
 #   TAURI_SIGNING_PRIVATE_KEY_PASSWORD — empty string (key has no password)
 # These sign the UPDATE artifacts (latest.json) so installed apps can
 # verify updates. This is separate from Windows code signing.
+#
+# Every action below is pinned to a full commit SHA, not a tag. Tags are
+# mutable — whoever controls the action's repo can repoint v4 at new code
+# any time. This job holds TAURI_SIGNING_PRIVATE_KEY, the key that
+# authorizes auto-updates to every installed copy of the app, so a
+# retagged action would be a straight path to shipping a malicious
+# update. The trailing comment records which tag each SHA came from;
+# Dependabot reads that format and keeps both in sync.
 
 on:
   push:
@@ -21,21 +29,23 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
 
-      - uses: dtolnay/rust-toolchain@stable
+      # `stable` here was a branch, not even a tag — it moved under us on
+      # every toolchain release.
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
 
-      - uses: swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           workspaces: src-tauri
 
       - run: npm ci
 
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}

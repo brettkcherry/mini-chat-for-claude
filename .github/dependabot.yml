@@ -1,0 +1,33 @@
+version: 2
+
+# Dependabot watches all three dependency surfaces this app ships from.
+# DOMPurify matters most: it is the only thing standing between model
+# output and innerHTML (see src/main.js renderMarkdown), so a stale
+# version there is a live XSS exposure, not routine drift.
+#
+# This file turns on *version* updates. Security updates are a separate
+# repo setting — see SECURITY.md for the one-liner to enable it.
+
+updates:
+  # Keeps the SHA pins in release.yml current, rewriting both the SHA and
+  # its trailing `# v4` comment. Pinning and Dependabot are complements:
+  # pinning stops silent retags, this stops the pins going stale.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # Ships in the installer: dompurify, marked, @tauri-apps/api.
+  # vite/postcss are devDependencies and don't reach users.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  # ~510 crates, and nothing has ever checked them against RustSec.
+  - package-ecosystem: "cargo"
+    directory: "/src-tauri"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
