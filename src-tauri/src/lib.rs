@@ -22,6 +22,27 @@ fn toggle_shortcut() -> Shortcut {
     Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::Space)
 }
 
+/// Remove the machine-local secret the uninstaller can't reach on its own.
+///
+/// Invoked as `claude-mini.exe --uninstall-cleanup` from the NSIS
+/// PREUNINSTALL hook — see `installer-hooks.nsh` for the exact conditions
+/// (only when the user ticked "delete application data", and never during an
+/// update).
+///
+/// Session transcripts are deliberately NOT touched here: they live under the
+/// app data directory, which the uninstaller already clears with `RmDir /r`
+/// when that same checkbox is ticked. This handles only the API key, which
+/// sits in Windows Credential Manager and so survives any amount of directory
+/// deletion.
+///
+/// Failure is swallowed on purpose. An uninstall must not fail because
+/// cleanup did, and `secrets::delete` already treats "no entry" as success —
+/// so the only errors reaching here mean the credential store itself was
+/// unreachable, which a user cannot act on mid-uninstall anyway.
+pub fn uninstall_cleanup() {
+    let _ = secrets::delete();
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
