@@ -61,6 +61,16 @@ jobs:
 
   cargo-audit:
     runs-on: ubuntu-latest
+    # rustsec/audit-check posts its result as a GitHub Check Run, which
+    # needs its own explicit grant — GITHUB_TOKEN's default contents:write
+    # (from a push to main) doesn't imply checks:write. Without this the
+    # audit itself passes clean but the job still fails with "Resource not
+    # accessible by integration", which reads exactly like a real finding
+    # until you open the log and see "No vulnerabilities were found" one
+    # line above the error.
+    permissions:
+      contents: read
+      checks: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
