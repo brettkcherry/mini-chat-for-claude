@@ -1,6 +1,7 @@
 # LAUNCH.md — public-release readiness review
 
 **Reviewed:** 2026-08-03, against `main` @ `dcc1e6b` (v0.3.0 published).
+**Last updated:** 2026-08-03 — W0, W1 (code), and W3 landed.
 **Scope:** everything a stranger touches — the binary, the install, the repo,
 the release page, the legal surface.
 
@@ -10,7 +11,23 @@ the release page, the legal surface.
 
 ---
 
+## Where this stands right now
+
+**Done:** W0 entirely, W1's code (B1–B3, S1, S2 — shipped, 35 tests green,
+not yet tagged), W3 entirely (B5, S4, S5, S6, S10).
+
+**Left before launch:** W2 in full — the icon decision and the README
+screenshot are the two things now standing between this and a promotable
+release — then W4 (smoke checklist + tag) and W5 (winget, announce).
+
+**One thing only Brett can do:** back up the updater signing key (B4). It is
+still a single copy on one machine.
+
+---
+
 ## Verdict
+
+*(Written before this session's work; kept as the original assessment.)*
 
 **The engineering is ready. The presentation and three streaming bugs are not.**
 
@@ -43,18 +60,18 @@ presentation, one on repo hygiene, then tag and go.
 | Area | State | Notes |
 |---|---|---|
 | Security posture | ✅ Strong | Keychain, CSP, SHA-pinned actions, npm+cargo audit in CI, private-report policy |
-| Supply chain | 🟡 Good, drifting | 15 open Dependabot PRs, 4 of them majors |
+| Supply chain | ✅ Current | All 15 Dependabot PRs handled, majors included; `cargo audit` clean with **no** ignore list |
 | Licensing / attribution | ✅ Done | MIT, NOTICE.md, 547-crate license bundle, bundle metadata |
 | Uninstall / data hygiene | ✅ Done | NSIS hook clears the credential, update-mode guarded |
 | Update pipeline | ✅ Proven live | Signed, verified, demonstrated 0.2.0 → 0.2.1 on a real install |
-| Test coverage | 🟡 Backend only | 26/26 green as of this review; installer/tray/updater/themes are manual and unchecklisted |
-| **Streaming correctness** | ❌ **Three real bugs** | See B1–B3 |
-| Presentation | ❌ Not started | No screenshot, no release notes, no changelog |
-| Brand / trademark | 🟡 Unresolved | Icon still the lowercase-c in Anthropic's orange |
-| Repo governance | 🟡 Thin | No branch protection, no issue templates, no topics |
-| Code signing | 🟡 Deliberate gap | Unsigned by choice; documented; SignPath unexplored |
-| Key custody | ❌ Single point of failure | Updater private key on one machine, no backup noted |
-| Accessibility | 🟡 Unaudited | No `aria-label`s, no `aria-live` on the transcript |
+| Test coverage | 🟡 Backend only | 35/35 green (was 26); installer/tray/updater/themes still manual and unchecklisted |
+| **Streaming correctness** | ✅ Fixed | B1–B3 shipped in `60f1566` with regression tests. Untagged. |
+| Presentation | 🟡 Half | Release notes + CHANGELOG done; **screenshot still missing** |
+| Brand / trademark | ❌ Unresolved | Icon still the lowercase-c in Anthropic's orange — Brett's call |
+| Repo governance | ✅ Done | Branch protection, issue templates, CONTRIBUTING, topics, Discussions |
+| Code signing | 🟡 Deliberate gap | Unsigned by choice; documented; SignPath retry outstanding |
+| Key custody | ❌ Single point of failure | Still one copy on one machine — **only Brett can fix this** |
+| Accessibility | 🟡 Unaudited | Send button now labelled; transcript still has no `aria-live` |
 
 ---
 
@@ -263,20 +280,20 @@ uninstaller checkbox, tray, updater, themes, first-run. A written checklist
 Sequential. Each gate ends in something you can point at.
 
 ### W0 — Ten minutes, do it now
-- [ ] Back up `~/.tauri/mini-for-claude.key` to a password manager + one
+- [ ] Back up `~/.tauri/mini-for-claude.key` to a password manager + one  ← **still outstanding, only you can do this**
       offline location; record where in PLAN.md **(B4)**
-- [ ] `git branch -d security-hardening` and delete it on origin **(S6)**
-- [ ] Add repo topics, enable Discussions, disable the empty Wiki **(S6)**
+- [x] `git branch -d security-hardening` and delete it on origin **(S6)**
+- [x] Add repo topics, enable Discussions, disable the empty Wiki **(S6)**
 
 ### W1 — Correctness gate → ship **v0.3.1**
 No audience should meet B1–B3.
 
-- [ ] Fix the split-UTF-8 decode; add a split-character regression test **(B1)**
-- [ ] Handle `error` events + implicit stop on both ends **(B2)**
-- [ ] Raise `max_tokens`; surface `stop_reason: "max_tokens"` **(B3)**
-- [ ] Add the stop button + cancellation token **(S1)** *(optional here, but
+- [x] Fix the split-UTF-8 decode; add a split-character regression test **(B1)**
+- [x] Handle `error` events + implicit stop on both ends **(B2)**
+- [x] Raise `max_tokens`; surface `stop_reason: "max_tokens"` **(B3)**
+- [x] Add the stop button + cancellation token **(S1)** *(optional here, but
       it's the same file and the same test pass)*
-- [ ] Friendly message on context-length 400 **(S2)**
+- [x] Friendly message on context-length 400 **(S2)**
 - [ ] `cargo test` green; manual smoke on a long reply with emoji in it
 - [ ] Tag `v0.3.1`, write real notes with checksums, publish
 - [ ] Confirm the live 0.3.0 install auto-updates to it
@@ -295,14 +312,14 @@ The app gets a face.
 ### W3 — Repo hygiene gate
 What a contributor and a security researcher land on.
 
-- [ ] Merge the patch/minor Dependabot PRs as a batch **(S4)**
-- [ ] Handle the four majors one at a time, `tauri-action` last **(S4)**
-- [ ] Resolve or re-document `quinn-proto`; drop the `--ignore` if #11 clears it **(S4)**
-- [ ] Branch protection on `main`: require the three checks, no direct pushes **(S5)**
-- [ ] `CHANGELOG.md`, backfilled to 0.2.0 **(S6)**
-- [ ] Issue templates (bug / feature) + three-line `CONTRIBUTING.md` **(S6)**
-- [ ] Backfill notes on the 0.2.0 / 0.2.1 releases **(B5)**
-- [ ] Pin `webviewInstallMode` **(S10)**
+- [x] Merge the patch/minor Dependabot PRs as a batch **(S4)**
+- [x] Handle the four majors one at a time, `tauri-action` last **(S4)**
+- [x] Resolve or re-document `quinn-proto`; drop the `--ignore` if #11 clears it **(S4)**
+- [x] Branch protection on `main`: require the three checks, no direct pushes **(S5)**
+- [x] `CHANGELOG.md`, backfilled to 0.2.0 **(S6)**
+- [x] Issue templates (bug / feature) + three-line `CONTRIBUTING.md` **(S6)**
+- [x] Backfill notes on the 0.2.0 / 0.2.1 releases **(B5)**
+- [x] Pin `webviewInstallMode` **(S10)**
 
 ### W4 — Release gate → **v0.4.0**
 - [ ] Write the manual smoke checklist into TESTING.md **(S11)**:

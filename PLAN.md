@@ -1,7 +1,8 @@
 <!-- portfolio
 status: warm
 stage:  Near first release
-next:   Record the README screenshot/GIF, then ship v1
+next:   Pick the icon and record the README screenshot/GIF — the last two
+        things between here and a promotable launch (see LAUNCH.md)
 -->
 
 # Claude Mini Player — PLAN.md
@@ -168,6 +169,112 @@ What ships in v0.1:
 **Talking to Claude:** Anthropic API direct (streaming), with the API key in OS keychain. Don't wrap claude.ai in a webview — fragile and undoes the whole point of stripping the chrome.
 
 **Next step:** ~~Decide stack~~ ✅ Tauri. ~~Decide platform target~~ ✅ Windows first, Mac later. Now: scaffold the window + first streaming message. Everything after that is iteration on the layout.
+
+### Session 2026-08-03 (part 2) — launch review, three streaming bugs fixed, dep backlog cleared
+
+**Handoff note.** Brett asked for a full public-launch review. That produced
+[LAUNCH.md](./LAUNCH.md) — the forward-looking checklist, kept current; read it
+rather than re-deriving status from here. This entry records the *why* behind
+what changed.
+
+#### Three real streaming bugs, all found by review, all now fixed (`60f1566`)
+
+Every one of them presented to a user as "it just stops sometimes":
+
+1. **Split UTF-8 killed the whole reply.** `stream_chat` called
+   `str::from_utf8` on each raw chunk from `bytes_stream()`. The transport
+   splits on byte counts, not character boundaries — so an em dash, curly
+   quote, emoji or accented name landing on a split returned `Err`, the `?`
+   aborted the request, and the frontend `catch` **overwrote the partial reply
+   on screen** with the decode error. Intermittent, input-dependent,
+   undescribable by a user. Fixed with a byte buffer that only decodes whole
+   characters and carries the incomplete tail forward. Tested at every interior
+   byte of a 4-byte emoji.
+
+2. **Mid-stream errors orphaned the bubble.** The parser handled
+   `content_block_delta` and `message_stop` and dropped everything else — so an
+   `error` event (overloaded, upstream failure) just ended the stream. No
+   terminal event meant `send_chat` returned `Ok`, the caret blinked forever,
+   and the text already received was never committed to `history`: visible on
+   screen, invisible to the next turn's context. Now handled, plus a synthetic
+   stop when a stream ends without one. **Every turn now ends exactly once.**
+
+3. **`max_tokens: 4096`, hardcoded, and `stop_reason` ignored.** Worse than it
+   looked: on models where thinking is on by default (Opus 5, Sonnet 5, Fable
+   5) `max_tokens` caps thinking *and* visible text together, so a high effort
+   level could spend the entire budget before a word reached the screen. Now
+   read per-model from `/v1/models` (`max_tokens` field, alongside the
+   `capabilities.effort` object already being parsed), clamped to 32K, and a
+   truncated reply says so.
+
+#### Also shipped
+
+- **Stop button** — Brett's ask, and a real gap: once a turn started there was
+  no way out but waiting, on a billed request. Send button becomes a
+  square stop control mid-turn; Esc does the same (popover dismissal wins if
+  one is open). Cancellation is a `oneshot` channel in app state, selected on
+  with `biased` so a fast stream can't starve it. Closing the connection is
+  what actually halts generation upstream. Partial reply is kept and committed.
+- **Prompt caching** (`cache_control: ephemeral`). Every turn re-sends the
+  whole conversation, so the same prefix was billed at full input price once
+  per message. ⚠️ **This is the one change that can't be verified without a
+  live API call** — smoke-test a real reply before tagging.
+- **Friendly API errors.** "Credit balance too low" and a rejected key are the
+  two failures a user can act on; both arrived as raw JSON.
+
+#### Dependency backlog cleared (`24aee30`) — and the ignore list is gone
+
+All 15 Dependabot PRs handled locally in one pass (they all touch the same two
+lockfiles; merging individually would have been an afternoon of rebases), then
+closed with a pointer to the commit. Four majors, each checked rather than
+assumed:
+
+- **vite 6→8** — Vite 8 replaced esbuild with oxc, so the explicit
+  `minify: "esbuild"` now *fails the build* asking for a separate esbuild
+  install. Switched to `minify: true`. Bundle came out 2 kB smaller.
+- **tauri-action 0.6.2→1.0.0** — read the breaking changes against this
+  workflow: the renamed/removed inputs are all ones we never used. **One thing
+  to watch on the next tag:** `latest.json` now points at `github.com` URLs
+  rather than browser-download ones, and that file is the updater's input.
+- **actions/checkout 4→7, setup-node 4→7** — SHA pins and their trailing
+  version comments updated together.
+
+**`RUSTSEC-2026-0185` (quinn-proto) is resolved for real, not ignored.** The
+previous session excepted it in CI because fixing it forced `rand` 0.9→0.10
+across the tree for a crate nothing references (tried, reverted). Took the bump
+this time and actually tested it: everything compiles, all 35 tests pass, and
+`cargo audit` exits clean **with no ignore list at all**. The `ignore:` line is
+gone from `test.yml`. Only `glib` remains open — an unsoundness *warning*,
+still not actionable without dropping the GTK tray dependency.
+
+#### Repo hardening
+
+Branch protection on `main` (three required checks, no force-push, no
+deletion). `enforce_admins` deliberately **off** — a solo maintainer locked out
+of their own default branch is a worse failure than an unreviewed push. Added
+issue templates (the bug one asks for version, Windows build, and
+survives-a-restart — the three things that make a report actionable),
+`CONTRIBUTING.md` with the scope boundaries written down so "add tabs" has a
+standing answer, and `CHANGELOG.md` backfilled to 0.1.0. Repo topics, wiki off,
+Discussions on. Release notes written for v0.3.0 (with SHA-256) and backfilled
+on 0.2.0/0.2.1 — all three were empty, and v0.3.0 is what `/releases/latest`
+shows a stranger. `webviewInstallMode` pinned to what was already the default.
+
+#### Still outstanding — read this first next session
+
+- **Back up the updater signing key.** `~/.tauri/mini-for-claude.key` is still
+  one copy on one machine. Lose it and auto-update is **permanently dead for
+  every existing install** — no rotation path reaches an already-installed app.
+  This is the highest-value five minutes available and only Brett can do it.
+- **Icon.** Unchanged since 2026-07-03 — still the lowercase-`c` in Anthropic's
+  orange that Brett himself flagged. `icon-drafts/` has iterations through v6
+  with no final pick. Shipping it quietly to a few users is one risk posture;
+  putting it on winget and an announcement post is another.
+- **README screenshot.** Still the `<!-- TODO -->` that PLAN.md's own `next:`
+  field has pointed at since v0.2. Highest-leverage single item left.
+- **Smoke test + tag v0.3.1.** The checklist is drafted in LAUNCH.md → W4.
+  Prompt caching and the tauri-action `latest.json` change both want a real
+  run.
 
 ### Session 2026-08-03 — security/compliance audit, v0.3.0 shipped, auto-update verified live
 

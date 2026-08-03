@@ -37,6 +37,17 @@ fixes. See [SECURITY.md](./SECURITY.md).
   prefix was being paid for at full price on every message. It is now cached
   and read back at roughly a tenth of the cost on subsequent turns.
 
+### Changed
+
+- All dependencies current, including four major bumps: Vite 6→8 (which
+  required swapping the minifier setting, since Vite 8 replaced esbuild with
+  oxc), `tauri-action` 0→1, and `actions/checkout` and `actions/setup-node`
+  4→7.
+- `cargo audit` now runs with no ignore list. The `quinn-proto` advisory was
+  excepted in CI because fixing it forced a `rand` major bump across the tree;
+  that bump has been taken and everything still passes.
+- Branch protection on `main`, issue templates, and a contributing guide.
+
 ## [0.3.0] — 2026-08-02
 
 ### Added
