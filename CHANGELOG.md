@@ -37,6 +37,11 @@ fixes. See [SECURITY.md](./SECURITY.md).
   prefix was being paid for at full price on every message. It is now cached
   and read back at roughly a tenth of the cost on subsequent turns.
 
+- New app icon — a teal chat window echoing the app's own composer, replacing
+  the lowercase-`c` that sat too close to Anthropic's own colour identity.
+- Screenshots in the README, at last.
+- Something small and undocumented, for the curious. 🌊
+
 ### Changed
 
 - All dependencies current, including four major bumps: Vite 6→8 (which

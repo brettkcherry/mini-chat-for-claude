@@ -79,6 +79,31 @@
   --bubble-user-rgb: 239, 225, 214;
 }
 
+/* ---------- Easter egg: ocean accent ----------
+   Flips the single accent colour the whole UI hangs off — twenty usages, two
+   variables — from Claude's warm orange to the teal family the app icon uses.
+   Undocumented on purpose; see the note in main.js.
+
+   This is the one place --accent deliberately breaks its own "identical in
+   both themes" rule. A teal bright enough to carry against the near-black
+   dark background washes out to nothing against the light theme's warm
+   off-white, and a teal deep enough for the light theme goes muddy on dark.
+   Measured rather than eyeballed: the values below sit at 6.0:1 and 4.2:1
+   against their own backgrounds, both comfortably past the orange they
+   replace on the light theme, which was the weakest pairing at 3.2:1.
+
+   Placed after the light block so the plain [data-accent] selector isn't
+   losing an ordering tie to it; the light override below carries an extra
+   attribute and outranks both. */
+:root[data-accent="ocean"] {
+  --accent: #3e9fb8;
+  --accent-soft: rgba(62, 159, 184, 0.18);
+}
+:root[data-theme="light"][data-accent="ocean"] {
+  --accent: #2e8497;
+  --accent-soft: rgba(46, 132, 151, 0.14);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -843,6 +868,10 @@ html, body {
   color: var(--text-faint);
   text-align: center;
   cursor: default;
+  /* Five rapid clicks would otherwise select the text and leave it
+     highlighted mid-gesture. The default cursor stays — an easter egg
+     shouldn't advertise itself with a pointer. */
+  user-select: none;
 }
 
 /* ---------- Update banner ---------- */

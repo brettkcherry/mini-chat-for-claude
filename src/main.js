@@ -829,6 +829,53 @@ function appVersionLabel() {
   return appVersion ? `Mini Chat for Claude v${appVersion}` : "Mini Chat for Claude";
 }
 
+// ---------- Easter egg: ocean accent ----------
+// The entire UI hangs off one accent colour, so swapping it to the icon's
+// teal is two CSS variables. All the thought went into the trigger.
+//
+// Deliberately hidden rather than made a Settings row: a visible "accent
+// colour" control invites "add more colours", which is precisely the scope
+// creep CONTRIBUTING warns about. Hidden, it costs nothing and never grows a
+// backlog. If it turns out people genuinely want the teal to match the icon,
+// promoting this to a real setting later is easy — the reverse isn't.
+const ACCENT_KEY = "accentOcean";
+let oceanAccent = localStorage.getItem(ACCENT_KEY) === "1";
+
+function applyAccent() {
+  if (oceanAccent) document.documentElement.dataset.accent = "ocean";
+  else delete document.documentElement.dataset.accent;
+}
+applyAccent();
+
+// Five clicks on the version line — the same gesture as tapping an Android
+// build number, which is the point: it's the spot a curious person already
+// pokes at. The counter resets after a pause so stray clicks across separate
+// visits to Settings can't quietly accumulate into a surprise.
+let versionClicks = 0;
+let versionResetTimer = null;
+
+function nudgeVersionCounter(el) {
+  clearTimeout(versionResetTimer);
+  versionResetTimer = setTimeout(() => {
+    versionClicks = 0;
+  }, 2000);
+
+  if (++versionClicks < 5) return;
+  versionClicks = 0;
+
+  oceanAccent = !oceanAccent;
+  localStorage.setItem(ACCENT_KEY, oceanAccent ? "1" : "0");
+  applyAccent();
+
+  // The whole UI changing colour is its own confirmation. This only names
+  // what happened, so it reads as intentional rather than as a glitch — and
+  // tells you the gesture that undoes it.
+  el.textContent = oceanAccent ? "🌊 ocean — five more to undo" : "🔸 warm";
+  setTimeout(() => {
+    el.textContent = appVersionLabel();
+  }, 1600);
+}
+
 // ---------- Settings ----------
 els.settings.addEventListener("click", () => {
   const existing = els.messages.querySelector(".settings-card");
@@ -870,6 +917,10 @@ function showSettingsCard() {
     <button class="settings-card__keybtn">API key…</button>
     <div class="settings-card__version">${escapeHtml(appVersionLabel())}</div>
   `;
+
+  card
+    .querySelector(".settings-card__version")
+    .addEventListener("click", (ev) => nudgeVersionCounter(ev.currentTarget));
 
   card.querySelector('[data-set="pin"]').addEventListener("click", (ev) => {
     // Flip the switch immediately (optimistic update) — don't wait on the
