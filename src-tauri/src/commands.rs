@@ -1,8 +1,21 @@
 // Tauri commands exposed to the JS frontend via `invoke()`.
 
-use tauri::{AppHandle, Emitter};
+use std::sync::Mutex;
 
-use crate::anthropic::{stream_chat, Message};
+use tauri::{AppHandle, Emitter, Manager};
+use tokio::sync::oneshot;
+
+use crate::anthropic::{stream_chat, ChatRequest, Message};
+
+/// Holds the cancel handle for the turn currently in flight, so the stop
+/// button has something to pull.
+///
+/// Storing the sender (rather than a flag) means cancelling is just dropping
+/// or firing it — and replacing it on a new turn implicitly cancels a previous
+/// one that somehow outlived its request, which is the behavior we want if the
+/// frontend's single-request guard is ever bypassed.
+#[derive(Default)]
+pub struct ChatState(Mutex<Option<oneshot::Sender<()>>>);
 
 /// Health check / IPC sanity test.
 #[tauri::command]
@@ -11,7 +24,7 @@ pub fn ping(name: &str) -> String {
 }
 
 /// Stream a chat turn from Anthropic. Emits `chat-chunk` events to the
-/// frontend for each delta and a final one with `stop: true`.
+/// frontend for each delta and exactly one final event with `stop: true`.
 ///
 /// Key resolution order: OS credential store first, then `ANTHROPIC_API_KEY`
 /// — but only in debug builds. See `secrets::env_fallback`.
@@ -21,6 +34,7 @@ pub async fn send_chat(
     model: String,
     messages: Vec<Message>,
     effort: Option<String>,
+    max_tokens: Option<u32>,
 ) -> Result<(), String> {
     let api_key = crate::secrets::load()
         .or_else(crate::secrets::env_fallback)
@@ -28,11 +42,47 @@ pub async fn send_chat(
             "No API key configured. Click the key button in the title bar to add one.".to_string()
         })?;
 
+    let (cancel_tx, cancel_rx) = oneshot::channel();
+    if let Ok(mut slot) = app.state::<ChatState>().0.lock() {
+        *slot = Some(cancel_tx);
+    }
+
     let app_for_chunks = app.clone();
-    stream_chat(api_key, model, messages, effort, move |chunk| {
-        let _ = app_for_chunks.emit("chat-chunk", chunk);
-    })
-    .await
+    let result = stream_chat(
+        ChatRequest { api_key, model, messages, effort, max_tokens },
+        cancel_rx,
+        move |chunk| {
+            let _ = app_for_chunks.emit("chat-chunk", chunk);
+        },
+    )
+    .await;
+
+    // Clear the handle either way: a stale sender left here would cancel the
+    // *next* turn the moment it gets replaced.
+    if let Ok(mut slot) = app.state::<ChatState>().0.lock() {
+        *slot = None;
+    }
+
+    result
+}
+
+/// Stop the turn in flight. No-op if nothing is running.
+///
+/// Cancelling closes the HTTP connection, which halts generation upstream —
+/// the user stops paying for tokens they decided they didn't want. The partial
+/// reply already on screen is kept; `stream_chat` emits a final `stop` so the
+/// frontend commits it to history like any other completed turn.
+#[tauri::command]
+pub fn cancel_chat(app: AppHandle) {
+    let sender = app
+        .state::<ChatState>()
+        .0
+        .lock()
+        .ok()
+        .and_then(|mut slot| slot.take());
+    if let Some(tx) = sender {
+        let _ = tx.send(());
+    }
 }
 
 /// The account's available models, newest first, with per-model effort

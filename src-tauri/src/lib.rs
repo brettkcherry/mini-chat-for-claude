@@ -91,6 +91,7 @@ pub fn run() {
         )
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(tray::TrayState::default())
+        .manage(commands::ChatState::default())
         .setup(|app| {
             if let Some(main) = app.get_webview_window("main") {
                 window::apply_platform_chrome(&app.handle(), &main);
@@ -119,6 +120,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::ping,
             commands::send_chat,
+            commands::cancel_chat,
             commands::save_api_key,
             commands::has_api_key,
             commands::delete_api_key,

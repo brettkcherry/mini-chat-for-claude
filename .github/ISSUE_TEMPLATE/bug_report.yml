@@ -1,0 +1,62 @@
+name: Bug report
+description: Something isn't working
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please don't report security problems here — see
+        [SECURITY.md](../blob/main/SECURITY.md) for private reporting. Anything
+        that could expose an API key or a user's machine needs a head start on
+        the fix.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead.
+      placeholder: |
+        1. Sent a long message on Opus 5 at max effort
+        2. The reply stopped halfway through a sentence
+        3. Expected the whole answer
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: Shown at the bottom of the Settings card (⚙).
+      placeholder: "0.3.0"
+    validations:
+      required: true
+
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      description: "`winver` will tell you — e.g. Windows 11 23H2 (22631.4169)."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: restart
+    attributes:
+      label: Does it survive a restart?
+      description: >
+        Quit fully (Shift+click ✕, or Quit in the sessions card) and relaunch.
+        A surprising number of issues are a stale running build.
+      options:
+        - "Yes — still happens after a restart"
+        - "No — a restart fixed it"
+        - "Haven't tried"
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: >
+        Model and effort level if it's about a reply. A screenshot if it's
+        visual. Whether it happens every time or occasionally.

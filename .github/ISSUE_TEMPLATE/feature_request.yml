@@ -1,0 +1,41 @@
+name: Feature request
+description: Suggest something for the widget
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This app is deliberately narrow — a floating chat widget that sits next
+        to your work, not a full Claude client. [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md)
+        lists what's out of scope (tabs, telemetry, extra network endpoints) so
+        you don't write up something that was never going to land.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: >
+        The situation, not the solution. What you were doing when you wished
+        the app did this.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+      description: Your suggested change, if you have one in mind.
+
+  - type: dropdown
+    id: fit
+    attributes:
+      label: Does this keep it a widget?
+      description: >
+        The bar for new UI is high — everything has to work down to 280px wide
+        and stay out of the way.
+      options:
+        - "Yes — it fits in the existing chrome"
+        - "It needs a new control or panel"
+        - "Not sure"
+    validations:
+      required: true

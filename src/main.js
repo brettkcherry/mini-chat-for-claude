@@ -115,6 +115,10 @@ prefersDarkMql.addEventListener("change", () => {
 // newest first. Deliberately omitted: Opus 4.1 (deprecated, retires
 // 2026-08-05) and Mythos 5 (invitation-only). Effort levels are canonical
 // lowercase API values.
+//
+// No `max_tokens` here on purpose: the live list carries each model's real
+// output ceiling, and a guess baked in alongside these labels would be one
+// more number to keep in sync. Absent, Rust clamps to the app's own maximum.
 const FALLBACK_MODELS = [
   { label: "Fable 5", id: "claude-fable-5", efforts: ["low", "medium", "high", "xhigh", "max"] },
   { label: "Opus 5", id: "claude-opus-5", efforts: ["low", "medium", "high", "xhigh", "max"] },
@@ -295,7 +299,12 @@ els.input.addEventListener("keydown", (e) => {
     submit();
   }
 });
-els.send.addEventListener("click", submit);
+// One button, two jobs: send while idle, stop while a reply is streaming.
+// Same slot means no layout shift mid-turn and no second control to explain.
+els.send.addEventListener("click", () => {
+  if (inFlight) cancelChat();
+  else submit();
+});
 
 // ---------- Conversation state ----------
 let history = []; // [{ role: 'user'|'assistant', content: string }]
@@ -379,6 +388,10 @@ async function submit() {
         effortChoice === "auto" || (MODELS[modelIdx]?.efforts ?? []).length === 0
           ? null
           : effortChoice,
+      // The selected model's own reported output ceiling, from /v1/models.
+      // Null on the offline fallback list, which is fine — Rust clamps a
+      // missing value to the app's maximum rather than guessing low.
+      maxTokens: MODELS[modelIdx]?.max_tokens ?? null,
     });
     // No-op here: history commit happens in the 'stop' chunk handler so
     // we capture the final text from the bubble's accumulated content.
@@ -396,10 +409,37 @@ async function submit() {
   }
 }
 
+// Icons for the send/stop button. Square-ish stop mark — the universal
+// "halt" shape, and it reads clearly at 14px where a thinner glyph wouldn't.
+const SEND_ICON = `<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+    <path fill="currentColor" d="M1.724 1.053a.5.5 0 0 0-.714.545l1.403 4.85a.5.5 0 0 0 .397.354l5.69.953c.268.053.268.437 0 .49l-5.69.953a.5.5 0 0 0-.397.354l-1.403 4.85a.5.5 0 0 0 .714.545l13-6.5a.5.5 0 0 0 0-.894l-13-6.5Z"/>
+  </svg>`;
+const STOP_ICON = `<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+    <rect x="4" y="4" width="8" height="8" rx="1.5" fill="currentColor"/>
+  </svg>`;
+
 function setComposerBusy(busy) {
   inFlight = busy;
-  els.send.disabled = busy;
   els.input.disabled = busy;
+  // The send button stays enabled and becomes the stop control — disabling it
+  // (as this used to) is what left a long reply with no way out but waiting.
+  els.send.disabled = false;
+  els.send.innerHTML = busy ? STOP_ICON : SEND_ICON;
+  els.send.classList.toggle("composer__send--stop", busy);
+  els.send.title = busy ? "Stop generating (Esc)" : "Send (Enter)";
+  els.send.setAttribute("aria-label", busy ? "Stop generating" : "Send message");
+}
+
+/// Halt the turn in flight. The partial reply stays on screen and gets
+/// committed to history by the stop event Rust sends back, so a stopped
+/// answer is still part of the conversation rather than being thrown away.
+async function cancelChat() {
+  if (!inFlight) return;
+  try {
+    await invoke("cancel_chat");
+  } catch (err) {
+    console.warn("cancel failed:", err);
+  }
 }
 
 // ---------- Messages ----------
@@ -436,7 +476,7 @@ function scrollToBottom() {
 // Note: not awaited — we don't need the unlisten handle, and top-level
 // await breaks the production build target.
 listen("chat-chunk", (event) => {
-  const { delta, stop } = event.payload;
+  const { delta, stop, notice } = event.payload;
   if (!streamingBubble) return;
 
   if (delta) {
@@ -451,13 +491,41 @@ listen("chat-chunk", (event) => {
   if (stop) {
     // Commit the RAW markdown to history (not rendered HTML) so the
     // conversation context sent back to the API stays clean.
-    history.push({ role: "assistant", content: streamingRaw });
+    //
+    // This runs for every ending, not just clean ones — a stop, a mid-stream
+    // API error, a dropped connection. Rust guarantees exactly one stop event
+    // per turn precisely so a partial reply is never stranded on screen but
+    // absent from the conversation the next turn is built from.
+    if (streamingRaw) history.push({ role: "assistant", content: streamingRaw });
+
+    // Why the turn ended, when that isn't "it finished": cut off at the
+    // length cap, declined, stopped, connection dropped. Absent on a normal
+    // completion — a note on every reply would train people to ignore them.
+    if (notice) appendNotice(streamingBubble, notice);
+
+    // A refusal, or an error before the first token, leaves the bubble empty.
+    // The notice already says what happened — an empty shell next to it just
+    // looks broken.
+    if (!streamingRaw) streamingBubble.remove();
+
     streamingBubble.classList.remove("msg--streaming");
     streamingBubble = null;
     streamingRaw = "";
     autosaveSession();
+    scrollToBottom();
   }
 });
+
+/// Attach a one-line explanation under a reply. Plain text via textContent —
+/// this is app copy today, but it sits next to a bubble that renders model
+/// output, and the two should never differ in how carefully they're handled.
+function appendNotice(bubble, text) {
+  const note = document.createElement("div");
+  note.className = "msg__notice";
+  note.setAttribute("role", "status");
+  note.textContent = text;
+  bubble.insertAdjacentElement("afterend", note);
+}
 
 // Links inside rendered markdown must NOT navigate the webview away from
 // the app (that would replace the whole UI with the linked page). Instead:
@@ -520,9 +588,20 @@ document.addEventListener("click", (e) => {
   }
 });
 
-// Escape closes the model dropdown (it's the only true popover).
+// Escape closes the model dropdown (it's the only true popover), and
+// otherwise stops generation — the muscle memory from every other chat UI.
+// Dismissing the popover wins when one is open, so a single Esc never both
+// closes a menu and kills a reply the user still wanted.
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") closeModelMenu();
+  if (e.key !== "Escape") return;
+  if (document.querySelector(".model-menu")) {
+    closeModelMenu();
+    return;
+  }
+  if (inFlight) {
+    e.preventDefault();
+    cancelChat();
+  }
 });
 
 // ---------- New chat + sessions browser + export ----------

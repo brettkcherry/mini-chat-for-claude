@@ -363,6 +363,22 @@ html, body {
   opacity: 0.9;
 }
 
+/* Why a reply ended, when that isn't simply "it finished": cut off at the
+   length cap, declined, stopped, connection dropped. Quieter than .msg--error
+   on purpose — the reply above it is usually still perfectly good, and these
+   are explanations rather than failures. */
+.msg__notice {
+  align-self: flex-start;
+  max-width: 100%;
+  color: var(--text-dim);
+  font-size: 11.5px;
+  line-height: 1.45;
+  padding-left: 10px;
+  border-left: 2px solid var(--text-dim);
+  opacity: 0.85;
+  margin-top: -2px;
+}
+
 .composer__input:disabled {
   opacity: 0.5;
 }
@@ -493,6 +509,17 @@ html, body {
 .composer__send:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+/* Stop state: same button, muted so it reads as "interrupt", not "confirm".
+   Deliberately not --danger — stopping is an ordinary thing to do, and
+   painting it as a destructive action would discourage using it. */
+.composer__send--stop {
+  background: var(--bubble-user);
+  color: var(--text-dim);
+}
+.composer__send--stop:hover {
+  opacity: 1;
+  color: var(--text);
 }
 
 /* ---------- API key setup card ---------- */
