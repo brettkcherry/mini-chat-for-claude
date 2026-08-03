@@ -120,18 +120,21 @@ Height-wise: just let the message area flex. The input bar is always pinned to t
 
 ## MVP scope
 
-What ships in v0.1:
+What shipped in v0.1 (checklist was stale — every item here was actually done
+by the 2026-05-26 scaffold or the 2026-06-12 streaming milestone; only three
+boxes had ever been ticked. Corrected 2026-08-03 during the pre-launch review.):
 
-- [ ] Frameless, always-on-top window (toggleable)
-- [ ] Resizable with min/max bounds (e.g., 280×320 min, 800×900 max)
-- [ ] Custom drag region (top strip, ~24px)
-- [ ] Single message thread, scrollable
-- [ ] Streaming responses from Anthropic API
+- [x] Frameless, always-on-top window (toggleable)
+- [x] Resizable with min/max bounds (280×320 min, 800×900 max)
+- [x] Custom drag region (top strip)
+- [x] Single message thread, scrollable
+- [x] Streaming responses from Anthropic API
 - [x] API key stored securely (OS keychain, not plaintext)
-- [ ] Model picker (Opus 4.7 / Sonnet 4.6 / Haiku 4.5)
+- [x] Model picker — now live from `/v1/models`, not the original static three
 - [x] Global keyboard shortcut to show/hide (`Ctrl+Shift+Space`)
-- [ ] Conversation persists across show/hide within a session
-- [ ] Container-query-based responsive layout (3 breakpoints)
+- [x] Conversation persists across show/hide within a session (and now across
+      restarts, via autosaved sessions — a v0.2 upgrade on the original ask)
+- [x] Container-query-based responsive layout (3 breakpoints)
 - [x] Markdown + code block rendering in messages (marked + DOMPurify, live re-render while streaming)
 
 ## Stretch goals (post-MVP)
