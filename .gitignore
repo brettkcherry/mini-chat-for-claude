@@ -24,3 +24,27 @@ Thumbs.db
 
 # Scratch space for icon-picking rounds — never meant to ship
 icon-drafts/
+
+# Working docs — kept local, not published.
+#
+# The published set is deliberately minimal: README, LICENSE, CHANGELOG,
+# CONTRIBUTING, SECURITY, and third-party notices. Everything below is written
+# for us, and publishing it would either help nobody or actively help the wrong
+# person:
+#
+#   HISTORY.md  dev log; names signing-key paths, how CI secrets are arranged,
+#               and specifics of the maintainer's machine. Individually
+#               harmless, collectively a map.
+#   LAUNCH.md   release checklist; an itemised list of the project's soft spots.
+#   PLAN.md     internal current-state and architecture notes.
+#   TESTING.md  test-bench rationale; CONTRIBUTING carries the part a
+#               contributor actually needs.
+#
+# Note these were public before 2026-08-04, so they remain in git history.
+# Removing them from HEAD stops new detail accruing; it doesn't erase the old.
+# The signing key itself was never committed (*.key, above), which is the
+# protection that actually matters.
+HISTORY.md
+LAUNCH.md
+PLAN.md
+TESTING.md

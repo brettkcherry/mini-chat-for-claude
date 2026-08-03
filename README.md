@@ -12,7 +12,7 @@ Frameless, always-on-top-toggleable, resizable, and beautifully responsive at ev
 
 ## Features
 
-- **1.8 MB installer, ~5 MB app** — Tauri, not Electron
+- **~2 MB installer, ~5 MB app** — Tauri, not Electron
 - **`Ctrl+Shift+Space`** summons or dismisses it from anywhere
 - **Streaming responses** with live markdown rendering (and a `</>` raw-text mode)
 - **Model picker** — pulled live from your account via `/v1/models`, so it's never stale
@@ -55,22 +55,17 @@ Or eventually: `winget install mini-chat-for-claude` *(coming after first public
   install it, which needs a connection during setup)
 - An Anthropic API key with credits ([console.anthropic.com](https://console.anthropic.com/))
 
-**On cost:** you pay Anthropic per message, from your own API credits — this is
-not covered by a Claude.ai subscription, which is billed separately. Typical
-short exchanges cost a fraction of a cent; long conversations and higher effort
-levels cost more, because each turn re-sends the conversation so far. The app
-caches that repeated context, which cuts most of it. You can watch actual spend
-at [console.anthropic.com](https://console.anthropic.com/).
+**On cost:** you pay Anthropic per message from your own API credits — a
+Claude.ai subscription doesn't cover it. Short exchanges cost a fraction of a
+cent; long ones cost more, since every turn re-sends the conversation so far
+(the app caches that, which removes most of it).
 
 ### Uninstalling
 
-The uninstaller offers a **"delete application data"** checkbox. Leave it
-unticked to keep your saved sessions and API key around for a reinstall.
-Tick it and both are removed: saved chats (plain JSON files under
-`%APPDATA%`) and the API key itself, which lives in Windows Credential
-Manager rather than on disk. A silent/unattended uninstall (`/S`) always
-takes the safe path and leaves both in place, since there's no dialog to
-tick the box in.
+The uninstaller's **"delete application data"** checkbox removes both your saved
+chats (plain JSON under `%APPDATA%`) and your API key from Windows Credential
+Manager. Leave it unticked to keep them for a reinstall. A silent uninstall
+(`/S`) always keeps them, since there's no dialog to tick.
 
 ## Build from source
 
@@ -81,13 +76,16 @@ npm run tauri dev      # development, hot-reload
 npm run tauri build    # release installer → src-tauri/target/release/bundle/
 ```
 
+See [CONTRIBUTING.md](./CONTRIBUTING.md) if you're planning to change something.
+
 ## Architecture (short version)
 
 - **Tauri 2** — Rust backend, system WebView2, vanilla JS frontend (no framework)
 - Streaming SSE client in Rust (`src-tauri/src/anthropic.rs`); tokens flow to the UI as Tauri events
 - All platform-specific code is quarantined in `src-tauri/src/window.rs`
 - Sessions are plain JSON files in the app data dir — yours to inspect, back up, or delete
-- Responsive layout via CSS container queries ([PLAN.md](./PLAN.md) tells the whole story, bugs and all)
+- Responsive layout via CSS container queries — the window reflows to its own
+  width, not the screen's, so it stays usable from 280px to 800px wide
 
 ## Security
 

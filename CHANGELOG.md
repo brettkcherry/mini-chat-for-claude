@@ -1,119 +1,113 @@
 # Changelog
 
-All notable changes to Mini Chat for Claude. Dates are release dates; the
-newest version is at the top.
-
-This project ships one rolling release — only the latest version receives
-fixes. See [SECURITY.md](./SECURITY.md).
+Newest first. This project ships one rolling release — only the latest version
+gets fixes ([SECURITY.md](./SECURITY.md)).
 
 ## [Unreleased]
 
 ### Fixed
 
-- **A reply is no longer lost when a multi-byte character lands on a network
-  chunk boundary.** An em dash, a curly quote, an emoji, or an accented name
-  could straddle the split between two network chunks; decoding each chunk on
-  its own then failed, aborting the request and replacing the partial reply on
-  screen with a decode error. Bytes are now buffered across chunks.
-- **A reply interrupted mid-stream is no longer stranded.** An error raised
-  after content started arriving (an overloaded API, a dropped connection) used
-  to end the stream with no terminal event: the bubble kept its blinking caret
-  forever, and the text already received never made it into the conversation
-  history. Every turn now ends with exactly one stop event, whatever happened.
+- **Replies no longer lost when a multi-byte character lands on a network chunk
+  boundary.** An em dash, curly quote, emoji or accented name could straddle two
+  chunks; decoding each one separately then failed, killing the request and
+  replacing the partial reply with an error.
+- **A reply interrupted mid-stream is no longer stranded.** An error after
+  content started arriving used to end the stream with no terminal event: the
+  bubble streamed forever and the text already received never entered the
+  conversation history. Every turn now ends exactly once, however it ends.
 - **Long replies are no longer silently truncated.** The output cap was
-  hardcoded at 4096 tokens for every model. It now comes from each model's own
-  reported ceiling, and a reply that does hit the cap says so instead of just
-  stopping mid-sentence.
-- **API errors are readable.** "Credit balance too low", a rejected key, and
-  rate limiting are explained in plain words instead of raw JSON.
+  hardcoded at 4096 tokens for every model; it now comes from each model's own
+  reported ceiling, and a reply that hits the cap says so.
+- **API errors are readable.** Out of credit, bad key, and rate limits are
+  explained in words instead of raw JSON.
 - **A declined request explains itself** rather than leaving an empty bubble.
 
 ### Added
 
-- **Stop button.** The send button becomes a stop control while a reply
-  streams; `Esc` does the same. Stopping closes the connection — generation
-  halts upstream and billing stops with it — and keeps the partial reply.
-- **Prompt caching.** Every turn re-sends the whole conversation, so the same
-  prefix was being paid for at full price on every message. It is now cached
-  and read back at roughly a tenth of the cost on subsequent turns.
-
-- New app icon — a teal chat window echoing the app's own composer, replacing
-  the lowercase-`c` that sat too close to Anthropic's own colour identity.
-- Screenshots in the README, at last.
+- **Stop button.** Halts a reply mid-stream (or `Esc`). Closes the connection,
+  so generation stops upstream and billing with it; the partial reply is kept.
+- **Prompt caching** — repeated conversation context now costs roughly a tenth
+  of what it did on every turn after the first.
+- **New icon** — a teal chat window echoing the app's own composer, replacing a
+  lettermark that sat too close to Anthropic's colour identity.
+- Screenshots in the README.
 - Something small and undocumented, for the curious. 🌊
 
 ### Changed
 
-- All dependencies current, including four major bumps: Vite 6→8 (which
-  required swapping the minifier setting, since Vite 8 replaced esbuild with
-  oxc), `tauri-action` 0→1, and `actions/checkout` and `actions/setup-node`
-  4→7.
-- `cargo audit` now runs with no ignore list. The `quinn-proto` advisory was
-  excepted in CI because fixing it forced a `rand` major bump across the tree;
-  that bump has been taken and everything still passes.
-- Branch protection on `main`, issue templates, and a contributing guide.
+- All dependencies current, including Vite 6→8, `tauri-action` 0→1, and
+  `actions/checkout` and `actions/setup-node` 4→7.
+- `cargo audit` runs with no ignore list. The `quinn-proto` advisory was
+  previously excepted because fixing it forced a `rand` major bump across the
+  tree; that bump has been taken.
+- Branch protection on `main`, issue templates, contributing guide.
 
 ## [0.3.0] — 2026-08-02
 
 ### Added
 
-- Dark/light/system theme toggle, with a full light palette.
-- Close-to-tray, with a Settings toggle for whether ✕ hides or quits.
-- Single-instance enforcement — launching the app again restores the running
-  window instead of starting a second copy.
+- Dark / light / system theme.
+- Close-to-tray, with a setting for whether ✕ hides or quits.
+- Single-instance enforcement — launching again restores the running window
+  instead of starting a second copy.
 - App version shown in Settings.
-- "Delete all chat history" control, behind an explicit confirm step.
+- "Delete all chat history", behind a confirm step.
 
 ### Security
 
-- Every GitHub Action in the release workflow pinned to a full commit SHA. The
-  release job holds the update-signing key, so a retagged action would be a
-  direct path to shipping a malicious update.
-- CI gate on every push and PR: `cargo test`, `npm audit`, and `cargo-audit`.
-- Fixed two high-severity advisories found by that gate: `quick-xml` (via
-  `plist`) and `serde_with`, both transitive through `tauri-utils`.
-- Bumped DOMPurify to 3.4.12 (two live CVEs).
-- Tightened CSP with `form-action`, `base-uri`, and `object-src` — none of
-  which inherit from `default-src`.
-- The `ANTHROPIC_API_KEY` environment-variable fallback is now compiled out of
-  release builds. In a shipped app it is an injection point, not a
-  convenience.
-- The uninstaller now removes the stored API key from Windows Credential
-  Manager when "delete application data" is ticked — the built-in cleanup only
-  clears directories, so the key survived it. Deliberately skipped during
-  auto-updates, which re-run the same uninstaller.
-- Session IDs are re-validated on the way out of storage, not just trusted
-  from disk.
-- Added `NOTICE.md`, per-crate license texts for all 547 Rust dependencies, and
-  `SECURITY.md`.
+- Every GitHub Action in the release workflow pinned to a full commit SHA. That
+  job holds the key authorizing auto-updates to every installed copy, so a
+  retagged action would be a direct path to shipping a malicious update. One of
+  the five had been pinned to a branch.
+- CI gate on every push and PR (`cargo test`, `npm audit`, `cargo-audit`), which
+  immediately surfaced two real high-severity advisories — `quick-xml` via
+  `plist`, and `serde_with` — both fixed.
+- DOMPurify to 3.4.12, closing two CVEs in the sanitizer model output passes
+  through.
+- **The uninstaller now removes your API key.** "Delete application data" only
+  cleared directories; the key lives in Windows Credential Manager and survived
+  it. Skipped during auto-updates, which re-run the same uninstaller.
+- The `ANTHROPIC_API_KEY` environment fallback is compiled out of release
+  builds — in a shipped app it's an injection point, not a convenience.
+- CSP tightened with `form-action`, `base-uri` and `object-src`, none of which
+  inherit from `default-src`.
+- Session IDs re-validated on read rather than trusted from disk.
+
+### Legal
+
+- `NOTICE.md`, per-crate licenses for all 547 Rust dependencies, `SECURITY.md`,
+  and publisher/copyright metadata in the installer.
 
 ## [0.2.1] — 2026-07-30
 
 ### Added
 
-- Model picker is populated live from `/v1/models` — model IDs and per-model
-  effort capabilities are read from the API rather than hardcoded, so the list
-  can't go stale and retired models drop off on their own.
-- Model picker is now a scrollable dropdown rather than click-to-cycle.
-- Model choice persists across restarts.
+- Model picker populated live from `/v1/models` — IDs *and* per-model effort
+  capabilities, so the list can't go stale and retired models drop off on their
+  own.
+- Model picker is a scrollable dropdown rather than click-to-cycle.
+- Model choice persists, keyed by ID rather than list position.
 
 ### Fixed
 
-- Effort level is stored canonically lowercase end to end, so a display-only
-  capitalization change can no longer break the value sent to the API.
+- Effort level stored canonically lowercase end to end, so a display-only
+  capitalisation can't silently break the value sent to the API.
 
 ## [0.2.0] — 2026-07-30
 
+First public release, as "Mini Chat for Claude" (renamed from "Claude Mini";
+internal identifiers deliberately unchanged so existing chats and saved keys
+survived).
+
 ### Added
 
-- First public release. Renamed from "Claude Mini" to "Mini Chat for Claude".
-- Auto-updater, with Ed25519-signed release artifacts.
-- Redesigned titlebar plus a Settings card: always-on-top, raw-text mode,
-  opacity slider.
+- Auto-updater with Ed25519-signed artifacts — the app refuses any update it
+  can't verify.
 - Sessions: every chat autosaves locally; browse, reload, delete.
-- Export a chat as Markdown, to the clipboard or a file.
-- Effort level control.
-- MIT license, public README, and CI that builds and signs on every tag.
+- Export a chat as Markdown, to clipboard or file.
+- Effort level control, per-model aware.
+- Settings card: always-on-top, raw-text mode, opacity.
+- MIT license, public README, CI that builds and signs on every version tag.
 
 ### Security
 
@@ -121,6 +115,6 @@ fixes. See [SECURITY.md](./SECURITY.md).
 
 ## [0.1.0] — 2026-06-12
 
-Initial build. Frameless always-on-top window, streaming replies from the
-Anthropic API, API key in Windows Credential Manager, markdown rendering,
-global summon shortcut, container-query responsive layout.
+Initial build. Frameless always-on-top window, streaming replies, API key in
+Windows Credential Manager, markdown rendering, global summon shortcut,
+container-query responsive layout.
