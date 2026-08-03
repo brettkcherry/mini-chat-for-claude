@@ -169,6 +169,53 @@ What ships in v0.1:
 
 **Next step:** ~~Decide stack~~ ✅ Tauri. ~~Decide platform target~~ ✅ Windows first, Mac later. Now: scaffold the window + first streaming message. Everything after that is iteration on the layout.
 
+### Session 2026-08-03 — security/compliance audit, v0.3.0 shipped, auto-update verified live
+
+**Handoff note — read this first if picking up in a fresh chat.** This session ran a full security & compliance review (prompted by "review this for public-release readiness"), fixed everything found, shipped it as v0.3.0, and confirmed the auto-updater works end-to-end on a real install. Below is everything a new session needs — don't re-derive it.
+
+#### What's live right now
+
+- **`main` is at `6e9f1f4`**, working tree clean, all pushed to `origin`.
+- **v0.3.0 is published** (not draft) on GitHub Releases, with a signed installer + `latest.json`. The running app on Brett's machine has already pulled it via auto-update — confirmed working.
+- **CI is green**: `test.yml` runs `cargo test` (Windows), `npm audit --omit=dev`, and `cargo-audit` on every push/PR. `release.yml` builds+signs+drafts on every `v*` tag.
+- **Dependabot is active** — 15 open PRs at last check (`gh pr list`), routine version bumps. Worth a review/merge pass; none are urgent.
+- Local `security-hardening` branch still exists but is fully merged into `main` (fast-forward) — safe to delete, just never got around to it.
+
+#### The 5-stage hardening pass (all done, all committed)
+
+Commits `15fe1b9` → `78cad79` on `main`, roughly in this order:
+1. SHA-pinned all 5 GitHub Actions in `release.yml` (was 4 mutable tags + `dtolnay/rust-toolchain@stable`, an actual *branch*); bumped DOMPurify 3.4.10→3.4.12 (two live CVEs); added `dependabot.yml`.
+2. Added `test.yml` CI gate. In the process, found and fixed two **real** high-severity CVEs cargo-audit surfaced: `quick-xml` (via `plist` 1.9.0→1.10.0, narrow bump) and later `serde_with` (3.20.0→3.21.0). Both were transitive through `tauri-utils`.
+3. **Uninstall credential cleanup.** Two things in the original audit brief turned out to be *wrong* and are corrected here: (a) Tauri v2 has no `deleteAppDataOnUninstall` config key — that's v1; `NsisConfig` is `deny_unknown_fields` so it would have failed the build. (b) Tauri's stock uninstaller *already* deletes app-data dirs via a checkbox — chat sessions were never actually orphaned. The real gap: the API key lives in Windows Credential Manager, which `RmDir` can't touch. Fixed via `installer-hooks.nsh` (`NSIS_HOOK_PREUNINSTALL`) calling `claude-mini.exe --uninstall-cleanup`, gated on `$DeleteAppDataCheckboxState = 1 AND $UpdateMode <> 1` — that second condition matters, because this hook *also* fires during auto-updates, and an unconditional wipe would sign out every user on every update.
+4. CSP hardening (`form-action`/`base-uri`/`object-src`, none of which inherit from `default-src`), env-var API key fallback now `cfg(debug_assertions)`-gated (was live in shipped builds), session IDs re-validated on the way out of `sessions::list` (not just trusted from disk), and a "delete all history" control (arm/confirm/disarm pattern).
+5. `NOTICE.md` + `licenses/rust-third-party.html` (all 547 Rust crates, generated via `cargo-about`, not hand-assembled — a WebFetch attempt at reproducing MPL-2.0 verbatim silently dropped Exhibit A/B, which is why this went through a real tool instead). `SECURITY.md`. `publisher`/`copyright`/`licenseFile`/`resources` added to `tauri.conf.json`'s bundle config.
+
+Then: merged to `main`, bumped to **0.3.0** (minor, not patch — this bundled the previously-untagged theme/tray/single-instance work from `d9b50e4` too), tagged, pushed, watched `release.yml` build clean, published the draft on explicit go-ahead.
+
+#### Bugs hit and fixed *after* the version bump, worth knowing about
+
+- **CI false alarm:** pushing the `serde_with` fix showed `cargo-audit`'s job as failed. Red herring — the audit itself found zero vulnerabilities; `rustsec/audit-check` failed trying to POST a GitHub Check Run without `checks: write` permission (`GITHUB_TOKEN`'s default `contents:write` on a push doesn't imply it). Fixed in `6e9f1f4` — scoped `permissions: checks: write` to just that job. **If you see this exact error again on an unrelated job, it's the same gotcha, not a new one.**
+- **GitHub's push-time "N vulnerabilities found" message is a stale snapshot**, not live state — it lagged behind reality by one push, more than once this session. Always re-check via `gh api repos/.../dependabot/alerts` directly rather than trust the push message.
+- **`npm audit` can report clean while a version is still genuinely vulnerable** — hit this once mid-session (stale registry metadata / npm cache), caught only because the installed version on disk didn't match what `npm audit`'s "up to date" implied. Worth a second look if an audit result ever feels too convenient.
+
+#### Two Dependabot alerts still open, both deliberate, both documented
+
+- `rust/quinn-proto` (high) — an **orphaned Cargo.lock entry**, verified via `cargo tree --target all -i quinn-proto` → nothing references it. Fixing it in place forces a `rand` 0.9→0.10 major bump repo-wide (tried it, reverted). Ignored in CI via `--ignore RUSTSEC-2026-0185` with a comment explaining why. **Dependabot PR #11 bumps this exact crate** — worth checking whether Dependabot's own resolution avoids the `rand` cascade before merging it; if it does, that PR can close this out for real.
+- `rust/glib` (medium) — an unsoundness advisory that `cargo-audit` itself buckets as a "warning," not a blocking vulnerability. Not actionable without dropping the GTK-based tray dependency.
+
+#### Stale local-machine bug fixed this session (not a repo issue)
+
+Brett's dev machine had **two separate installs**: a real 0.3.0 at `%LOCALAPPDATA%\Mini Chat for Claude\`, and a leftover **v0.1.0** dev build at `%LOCALAPPDATA%\Claude Mini\` (pre-rename, pre-single-instance-plugin — hence two zombie processes from it, and no settings gear). Windows Search ranked the old one first purely on launch-frequency history. Diagnosed via `Get-Process | Select Path` (found both binaries) and resolving `.lnk` shortcuts via `WScript.Shell` COM (found both Start Menu entries pointing at different folders). Fixed by running the *old* build's own `uninstall.exe` (correctly tied to its own now-stale registry entry, `DisplayName: Claude Mini, DisplayVersion: 0.1.0`) rather than deleting files by hand. **This was purely local dev-history residue — not something any real user installing from GitHub Releases would ever hit**, since every published release has always used the current product name.
+
+#### Outstanding — genuinely not done
+
+- **Code signing.** Not free. Researched this session:
+  - *Azure Artifact Signing* (renamed from "Trusted Signing" — same service, new name) does accept individual developers, but **US/Canada residency only**, requires real government-ID + biometric identity verification (1–20 business days), **has no free tier**, and pricing is no longer even published — it's sales-quote-only now. Does not meet the $0 goal.
+  - *SignPath.io* has a free code-signing program specifically for qualifying open-source projects (this repo — MIT, public — would plausibly qualify) and is used by real OSS Windows projects. **Could not confirm current eligibility/process details this session** — their site returned a header-parsing error on every fetch attempt (`about.signpath.io` and a couple of guessed paths). Next session: try again, or have Brett check `signpath.io` directly and report back what the application process actually asks for.
+  - Bottom line for now: **ship unsigned.** The README already documents the SmartScreen click-through. That's a completely normal, valid way for a solo/OSS dev to distribute on Windows — this isn't a blocker, just friction.
+- **Icon/brand (M5 from the original audit).** Brett is working on iconography in a different app right now and will bring a decision back here. The current lowercase-`c` icon sits close to Anthropic's own color identity — flagged, not resolved, his call to make.
+- **Release notes for v0.2.0/v0.2.1** are still empty on GitHub. A draft (with checksums) was written to the scratchpad during the session but never applied — low priority, cosmetic.
+
 ### Session 2026-07-30 — dynamic model list, corner fix confirmed, v0.2.1 ships
 
 **Corner/shadow bug — confirmed still fixed.** Brett flagged what looked
