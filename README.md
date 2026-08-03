@@ -6,7 +6,9 @@ Frameless, always-on-top-toggleable, resizable, and beautifully responsive at ev
 
 > ⚠️ **Unofficial.** This is an independent open-source project, not affiliated with or endorsed by Anthropic. *Claude* is a trademark of Anthropic, PBC. You bring your own [Anthropic API key](https://console.anthropic.com/) — your **conversations** go directly from your machine to Anthropic's API, nowhere else. The app also talks to two other endpoints on its own, neither carrying any chat content: `api.anthropic.com/v1/models` at startup, to keep the model picker current, and `github.com` on launch, to check for an app update.
 
-<!-- TODO: screenshot / GIF here before first public release -->
+<p align="center">
+  <img src="./docs/screenshot-conversation.png" alt="Mini Chat for Claude floating on the desktop, mid-conversation" width="420">
+</p>
 
 ## Features
 
@@ -18,8 +20,26 @@ Frameless, always-on-top-toggleable, resizable, and beautifully responsive at ev
 - **Sessions** — every chat autosaves locally; browse, reload, delete
 - **Export** — copy any chat as Markdown or save as `.md`
 - **API key in the OS credential store** (Windows Credential Manager) — never plaintext on disk
+- **Stop button** — halt a reply mid-stream (or press `Esc`). Closes the
+  connection, so generation stops upstream and you stop paying for it. What
+  arrived is kept.
+- **Light and dark**, or follow your OS theme
+- **Adjustable opacity**, so it can sit over your work without hiding it
 - **Remembers its position and size**; pin it always-on-top from Settings
 - **Auto-updates** from GitHub Releases (opt-in per update, one click)
+- **No telemetry, no analytics, no account.** Three network calls, all listed
+  above, and none of them is us
+
+<table>
+<tr>
+<td width="50%"><img src="./docs/screenshot-welcome.png" alt="The widget on first launch"></td>
+<td width="50%"><img src="./docs/screenshot-settings.png" alt="The settings card: always-on-top, close-to-tray, raw text mode, theme, opacity"></td>
+</tr>
+<tr>
+<td align="center"><em>Summon it with a keystroke</em></td>
+<td align="center"><em>Everything it does, on one card</em></td>
+</tr>
+</table>
 
 ## Install (Windows)
 
@@ -31,8 +51,16 @@ Or eventually: `winget install mini-chat-for-claude` *(coming after first public
 
 ### Requirements
 
-- Windows 10/11 (WebView2 ships with Windows 11; older Win10 will prompt to install it)
-- An Anthropic API key with credits ([console.anthropic.com](https://console.anthropic.com/) — note: separate from a Claude.ai subscription)
+- Windows 10/11 (WebView2 ships with Windows 11; older Win10 will prompt to
+  install it, which needs a connection during setup)
+- An Anthropic API key with credits ([console.anthropic.com](https://console.anthropic.com/))
+
+**On cost:** you pay Anthropic per message, from your own API credits — this is
+not covered by a Claude.ai subscription, which is billed separately. Typical
+short exchanges cost a fraction of a cent; long conversations and higher effort
+levels cost more, because each turn re-sends the conversation so far. The app
+caches that repeated context, which cuts most of it. You can watch actual spend
+at [console.anthropic.com](https://console.anthropic.com/).
 
 ### Uninstalling
 
