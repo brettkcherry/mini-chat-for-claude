@@ -3,7 +3,7 @@
 Newest first. This project ships one rolling release — only the latest version
 gets fixes ([SECURITY.md](./SECURITY.md)).
 
-## [Unreleased]
+## [0.4.0] — 2026-08-04
 
 ### Fixed
 
@@ -31,6 +31,12 @@ gets fixes ([SECURITY.md](./SECURITY.md)).
 - **New icon** — a teal chat window echoing the app's own composer, replacing a
   lettermark that sat too close to Anthropic's colour identity.
 - Screenshots in the README.
+- **Screen-reader support** — replies are announced when they complete, and
+  every control is labelled. The transcript deliberately isn't a live region:
+  it re-renders on every token, so marking it live would read a growing partial
+  sentence hundreds of times per reply.
+- The "unofficial, not affiliated with Anthropic" notice now appears in the app
+  itself, not only in the README.
 - Something small and undocumented, for the curious. 🌊
 
 ### Changed
