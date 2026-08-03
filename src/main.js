@@ -378,6 +378,9 @@ async function submit() {
   setComposerBusy(true);
   streamingBubble = beginStreamingBubble();
   streamingRaw = "";
+  // At high effort a reply can take 30s+ before the first token. Without
+  // this, silence is indistinguishable from a hang.
+  announce("Claude is replying");
 
   try {
     await invoke("send_chat", {
@@ -404,9 +407,29 @@ async function submit() {
     } else {
       appendMessage("error", String(err));
     }
+    announce(`Error. ${err}`);
   } finally {
     setComposerBusy(false);
   }
+}
+
+/// Speak something to a screen reader.
+///
+/// The transcript itself deliberately isn't a live region — the streaming
+/// bubble re-renders on every token, so marking it live would read a growing
+/// partial sentence hundreds of times per reply. Announcements are curated
+/// here instead: that a reply started, and the finished text once it's done.
+///
+/// Re-setting textContent to the same string wouldn't re-announce, so the
+/// field is cleared first — a real quirk of live regions, not superstition.
+function announce(text) {
+  const region = document.getElementById("sr-status");
+  if (!region) return;
+  region.textContent = "";
+  // A tick's delay so the clear and the set land as two separate mutations.
+  setTimeout(() => {
+    region.textContent = text;
+  }, 50);
 }
 
 // Icons for the send/stop button. Square-ish stop mark — the universal
@@ -496,7 +519,8 @@ listen("chat-chunk", (event) => {
     // API error, a dropped connection. Rust guarantees exactly one stop event
     // per turn precisely so a partial reply is never stranded on screen but
     // absent from the conversation the next turn is built from.
-    if (streamingRaw) history.push({ role: "assistant", content: streamingRaw });
+    const committed = streamingRaw;
+    if (committed) history.push({ role: "assistant", content: committed });
 
     // Why the turn ended, when that isn't "it finished": cut off at the
     // length cap, declined, stopped, connection dropped. Absent on a normal
@@ -509,6 +533,12 @@ listen("chat-chunk", (event) => {
     if (!streamingRaw) streamingBubble.remove();
 
     streamingBubble.classList.remove("msg--streaming");
+
+    // The whole reply, read once now that it's settled. Notices are appended
+    // so the reason a turn ended early is spoken too, not just shown.
+    const spoken = [committed, notice].filter(Boolean).join(". ");
+    if (spoken) announce(spoken);
+
     streamingBubble = null;
     streamingRaw = "";
     autosaveSession();
@@ -916,6 +946,7 @@ function showSettingsCard() {
     </div>
     <button class="settings-card__keybtn">API key…</button>
     <div class="settings-card__version">${escapeHtml(appVersionLabel())}</div>
+    <div class="settings-card__disclaimer">Unofficial · not affiliated with Anthropic</div>
   `;
 
   card

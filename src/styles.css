@@ -79,6 +79,22 @@
   --bubble-user-rgb: 239, 225, 214;
 }
 
+/* Visually hidden, still read aloud. The clip-rect approach rather than
+   display:none or visibility:hidden — both of those remove the element from
+   the accessibility tree entirely, which would defeat the purpose. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* ---------- Easter egg: ocean accent ----------
    Flips the single accent colour the whole UI hangs off — twenty usages, two
    variables — from Claude's warm orange to the teal family the app icon uses.
@@ -882,6 +898,16 @@ html, body {
      highlighted mid-gesture. The default cursor stays — an easter egg
      shouldn't advertise itself with a pointer. */
   user-select: none;
+}
+
+/* The README says this, but the README isn't what people look at — the
+   installed app is. Quiet, but present where the claim actually matters. */
+.settings-card__disclaimer {
+  margin-top: 2px;
+  font-size: 9px;
+  color: var(--text-faint);
+  text-align: center;
+  opacity: 0.75;
 }
 
 /* ---------- Update banner ---------- */
