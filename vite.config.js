@@ -21,8 +21,12 @@ export default defineConfig({
     },
   },
   build: {
+    // WebView2 is evergreen, so there's no old-browser floor to hold to.
     target: "es2022",
-    minify: "esbuild",
+    // Vite 8 replaced esbuild with oxc as the bundled minifier; naming
+    // "esbuild" explicitly now fails the build asking for a separate esbuild
+    // install. `true` takes whatever Vite ships, which is the point.
+    minify: true,
     sourcemap: false,
   },
 });
