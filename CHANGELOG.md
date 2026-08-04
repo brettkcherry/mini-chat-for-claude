@@ -3,6 +3,24 @@
 Newest first. This project ships one rolling release — only the latest version
 gets fixes ([SECURITY.md](./SECURITY.md)).
 
+## [0.4.1] — 2026-08-04
+
+### Fixed
+
+- **Long replies no longer freeze the window.** A reply was re-parsed in full on
+  every streamed token — parser, then sanitizer, then a complete DOM
+  replacement, hundreds of times over. The cost grew with the square of the
+  reply, so a long answer could pin the interface long enough that the titlebar
+  buttons stopped responding. Measured on a 9,700-character reply: 812ms of
+  parsing where 0.7ms was needed. Now painted on a throttle — visually
+  identical, and the cost no longer scales with length.
+
+### Changed
+
+- The sessions card now says which chat the export buttons act on. They export
+  the chat you have open, but sat directly above a list of every saved chat,
+  so the layout implied you were exporting a row from the list.
+
 ## [0.4.0] — 2026-08-04
 
 ### Fixed
