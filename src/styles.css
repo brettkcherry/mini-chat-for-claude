@@ -79,6 +79,37 @@
   --bubble-user-rgb: 239, 225, 214;
 }
 
+/* Waiting on the model's first visible token. On models that think before
+   writing, that gap runs 30s+ at higher effort and produces no text at all —
+   so without this the window looks hung. Animated ellipsis rather than a
+   spinner: it reads as "composing", not "loading". */
+.msg--waiting {
+  color: var(--text-dim);
+  font-style: italic;
+}
+.msg--waiting::after {
+  content: "";
+  animation: waiting-dots 1.4s steps(4, end) infinite;
+}
+@keyframes waiting-dots {
+  0%   { content: ""; }
+  25%  { content: "."; }
+  50%  { content: ".."; }
+  75%  { content: "..."; }
+  100% { content: ""; }
+}
+/* Respect a reduced-motion preference: keep the text, drop the animation. */
+@media (prefers-reduced-motion: reduce) {
+  .msg--waiting::after {
+    content: "…";
+    animation: none;
+  }
+}
+/* The streaming caret is meaningless while there's nothing being typed. */
+.msg--waiting.msg--streaming::before {
+  display: none;
+}
+
 /* Section labels inside the sessions card. The card does two unrelated jobs —
    export what you're in, and browse what you've saved — and previously said
    so nowhere. */

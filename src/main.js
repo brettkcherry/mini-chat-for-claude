@@ -484,8 +484,15 @@ function appendMessage(role, text) {
 function beginStreamingBubble() {
   clearWelcome();
   const div = document.createElement("div");
-  div.className = "msg msg--claude msg--streaming";
-  div.textContent = "";
+  // msg--waiting shows a "Thinking" indicator until the first token of actual
+  // text arrives. On models where thinking is on by default (Opus 5, Sonnet 5,
+  // Fable 5) the model reasons before writing a single visible word, and that
+  // reasoning is not streamed as text — so the app was receiving events the
+  // whole time and painting nothing. At high effort that silence runs 30s+,
+  // which is indistinguishable from a hang: it cost a real user two duplicate
+  // sends and a bug report before this existed.
+  div.className = "msg msg--claude msg--streaming msg--waiting";
+  div.textContent = "Thinking";
   els.messages.appendChild(div);
   scrollToBottom();
   return div;
@@ -535,6 +542,13 @@ listen("chat-chunk", (event) => {
   if (!streamingBubble) return;
 
   if (delta) {
+    // First real text: drop the thinking indicator. Done here rather than in
+    // the throttled painter so the switch is immediate — the whole point is
+    // responsiveness.
+    if (streamingBubble.classList.contains("msg--waiting")) {
+      streamingBubble.classList.remove("msg--waiting");
+      streamingBubble.textContent = "";
+    }
     // Accumulate immediately; paint on a throttle. See scheduleStreamRender.
     streamingRaw += delta;
     streamingBubble.dataset.raw = streamingRaw;
@@ -565,6 +579,9 @@ listen("chat-chunk", (event) => {
     // A refusal, or an error before the first token, leaves the bubble empty.
     // The notice already says what happened — an empty shell next to it just
     // looks broken.
+    if (!streamingRaw && !notice) {
+      appendNotice(streamingBubble, "Claude returned an empty response.");
+    }
     if (!streamingRaw) streamingBubble.remove();
 
     streamingBubble.classList.remove("msg--streaming");
