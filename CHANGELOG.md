@@ -5,7 +5,7 @@ gets fixes ([SECURITY.md](./SECURITY.md)).
 
 ## [0.4.1] — 2026-08-04
 
-Three fixes, all found by using the app rather than by any test: in each case
+Five fixes, all found by using the app rather than by any test: in most cases
 it was behaving correctly and telling you nothing.
 
 ### Fixed
@@ -25,6 +25,17 @@ it was behaving correctly and telling you nothing.
   buttons stopped responding. Measured on a 9,700-character reply: 812ms of
   parsing where 0.7ms was needed. Now painted on a throttle — visually
   identical, and the cost no longer scales with length.
+- **Settings and Sessions could open invisibly.** Both cards were inserted at
+  the top of the scrollable transcript with no scroll reset, so opening either
+  from a chat long enough to be scrolled to the bottom landed the card off-screen
+  above the fold. The button looked like it did nothing; it had actually worked.
+
+### Added
+
+- **Export now opens a native Save dialog** instead of always writing to
+  `Documents\Mini Chat for Claude\` with no way to redirect it. The dialog
+  still defaults to that folder and filename — you can just hit save — but any
+  folder and name are now yours to pick.
 
 ### Changed
 
