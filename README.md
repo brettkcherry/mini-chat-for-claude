@@ -44,7 +44,7 @@ Frameless, always-on-top-toggleable, resizable, and beautifully responsive at ev
 ## Install (Windows)
 
 1. Grab the latest `Mini Chat for Claude_x.y.z_x64-setup.exe` from [Releases](../../releases)
-2. SmartScreen will warn once (the app is unsigned for now): **More info → Run anyway**
+2. SmartScreen may warn once (the app is unsigned for now): **More info → Run anyway**
 3. Launch, click the 🔑 button, paste your Anthropic API key — done
 
 Or eventually: `winget install mini-chat-for-claude` *(coming after first public release)*
