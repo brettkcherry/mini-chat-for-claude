@@ -125,10 +125,18 @@ pub fn delete_all_sessions(app: AppHandle) -> Result<usize, String> {
     crate::sessions::delete_all(&app)
 }
 
-/// Write the transcript to Documents/Claude Mini/, return the full path.
+/// Suggest a full path under Documents/Mini Chat for Claude/ for the save
+/// dialog to open at. Doesn't write anything — the dialog lets the user
+/// pick a different name or folder before anything touches disk.
 #[tauri::command]
-pub fn export_chat(app: AppHandle, markdown: String, title: String) -> Result<String, String> {
-    crate::sessions::export_markdown(&app, &markdown, &title)
+pub fn default_export_path(app: AppHandle, title: String) -> Result<String, String> {
+    crate::sessions::default_export_path(&app, &title)
+}
+
+/// Write the transcript to the exact path the user chose in the save dialog.
+#[tauri::command]
+pub fn write_export(path: String, markdown: String) -> Result<(), String> {
+    crate::sessions::write_export(&path, &markdown)
 }
 
 /// Fully exit. The ✕ button only hides the window — without this command

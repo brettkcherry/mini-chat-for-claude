@@ -90,6 +90,7 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
         .manage(tray::TrayState::default())
         .manage(commands::ChatState::default())
         .setup(|app| {
@@ -131,7 +132,8 @@ pub fn run() {
             commands::load_session,
             commands::delete_session,
             commands::delete_all_sessions,
-            commands::export_chat,
+            commands::default_export_path,
+            commands::write_export,
             commands::quit_app,
             commands::install_update,
             commands::set_close_to_tray,

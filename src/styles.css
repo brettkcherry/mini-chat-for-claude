@@ -89,6 +89,7 @@
 }
 .msg--waiting::after {
   content: "";
+  font-style: normal;
   animation: waiting-dots 1.4s steps(4, end) infinite;
 }
 @keyframes waiting-dots {

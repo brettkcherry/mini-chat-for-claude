@@ -164,8 +164,11 @@ fn sanitize_title_stem(title: &str) -> String {
     if safe.is_empty() { "chat".to_string() } else { safe }
 }
 
-/// Write an exported transcript to Documents/Claude Mini/. Returns the path.
-pub fn export_markdown(app: &AppHandle, markdown: &str, title: &str) -> Result<String, String> {
+/// Suggest a full path under Documents/Mini Chat for Claude/ — sanitized
+/// title + timestamp for a unique, readable filename. Creates the directory
+/// so the save dialog has somewhere to open, but writes nothing; the user
+/// can still redirect to any folder before anything touches disk.
+pub fn default_export_path(app: &AppHandle, title: &str) -> Result<String, String> {
     let dir = app
         .path()
         .document_dir()
@@ -173,16 +176,19 @@ pub fn export_markdown(app: &AppHandle, markdown: &str, title: &str) -> Result<S
         .join("Mini Chat for Claude");
     fs::create_dir_all(&dir).map_err(|e| format!("cannot create export dir: {e}"))?;
 
-    // Sanitized title + timestamp → unique, readable filename.
     let stem = sanitize_title_stem(title);
     let ts = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0);
     let path = dir.join(format!("{stem}-{ts}.md"));
-
-    fs::write(&path, markdown).map_err(|e| format!("write failed: {e}"))?;
     Ok(path.to_string_lossy().into_owned())
+}
+
+/// Write an exported transcript to the exact path the user chose in the
+/// save dialog.
+pub fn write_export(path: &str, markdown: &str) -> Result<(), String> {
+    fs::write(path, markdown).map_err(|e| format!("write failed: {e}"))
 }
 
 #[cfg(test)]

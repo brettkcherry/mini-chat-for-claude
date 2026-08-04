@@ -11,6 +11,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getVersion } from "@tauri-apps/api/app";
+import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 
@@ -834,10 +835,14 @@ async function showSessionsCard() {
         return;
       }
       try {
-        const path = await invoke("export_chat", {
-          markdown: transcriptMarkdown(),
-          title: sessionTitle(),
+        const defaultPath = await invoke("default_export_path", { title: sessionTitle() });
+        const path = await saveDialog({
+          title: "Save chat as Markdown",
+          defaultPath,
+          filters: [{ name: "Markdown", extensions: ["md"] }],
         });
+        if (!path) return; // user cancelled the dialog
+        await invoke("write_export", { path, markdown: transcriptMarkdown() });
         status.textContent = `✓ Saved: ${path}`;
       } catch (err) {
         status.textContent = String(err);
@@ -867,6 +872,11 @@ async function showSessionsCard() {
   });
 
   els.messages.prepend(card);
+  // The card lands as the first child of a scrollable, auto-scrolled
+  // transcript. In a short chat that's already in view; in a long one
+  // scrolled to the bottom it's invisible above the fold, and the click
+  // that opened it looks like it did nothing.
+  els.messages.scrollTop = 0;
 }
 
 async function loadSession(id) {
@@ -1068,6 +1078,11 @@ function showSettingsCard() {
   });
 
   els.messages.prepend(card);
+  // The card lands as the first child of a scrollable, auto-scrolled
+  // transcript. In a short chat that's already in view; in a long one
+  // scrolled to the bottom it's invisible above the fold, and the click
+  // that opened it looks like it did nothing.
+  els.messages.scrollTop = 0;
 }
 
 function setComposerEnabled(enabled) {
@@ -1165,6 +1180,11 @@ async function showSetupCard() {
   });
 
   els.messages.prepend(card);
+  // The card lands as the first child of a scrollable, auto-scrolled
+  // transcript. In a short chat that's already in view; in a long one
+  // scrolled to the bottom it's invisible above the fold, and the click
+  // that opened it looks like it did nothing.
+  els.messages.scrollTop = 0;
   input.focus();
 }
 
