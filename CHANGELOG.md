@@ -5,8 +5,19 @@ gets fixes ([SECURITY.md](./SECURITY.md)).
 
 ## [0.4.1] — 2026-08-04
 
+Three fixes, all found by using the app rather than by any test: in each case
+it was behaving correctly and telling you nothing.
+
 ### Fixed
 
+- **Claude now says when it's thinking.** On the newer models, thinking happens
+  before any visible text and produces none of its own — so a reply could sit
+  for 30 seconds or more showing nothing but a blinking cursor, which is
+  indistinguishable from the app having hung. The reply bubble now says
+  "Thinking…" until the first word arrives.
+- **An empty reply says so.** If a turn produced no text at all, the bubble was
+  silently removed — leaving your own message with nothing after it and no way
+  to tell whether the app had failed or the model had simply said nothing.
 - **Long replies no longer freeze the window.** A reply was re-parsed in full on
   every streamed token — parser, then sanitizer, then a complete DOM
   replacement, hundreds of times over. The cost grew with the square of the
