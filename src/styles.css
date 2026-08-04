@@ -79,6 +79,38 @@
   --bubble-user-rgb: 239, 225, 214;
 }
 
+/* Section labels inside the sessions card. The card does two unrelated jobs —
+   export what you're in, and browse what you've saved — and previously said
+   so nowhere. */
+.sessions__subhead {
+  margin-top: 12px;
+  margin-bottom: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-dim);
+}
+.sessions__subhead:first-of-type {
+  margin-top: 8px;
+}
+.sessions__hint {
+  font-weight: 400;
+  color: var(--text-faint);
+}
+/* The chat the export buttons will actually act on, named. */
+.sessions__current {
+  font-size: 12px;
+  color: var(--text);
+  padding: 5px 8px;
+  margin-bottom: 6px;
+  border-radius: var(--radius-control);
+  background: var(--bg-elev);
+  border-left: 2px solid var(--accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Visually hidden, still read aloud. The clip-rect approach rather than
    display:none or visibility:hidden — both of those remove the element from
    the accessibility tree entirely, which would defeat the purpose. */

@@ -495,6 +495,38 @@ function scrollToBottom() {
   els.messages.scrollTop = els.messages.scrollHeight;
 }
 
+// ---------- Streaming render throttle ----------
+// Re-rendering on every chunk is quadratic and it does not merely make long
+// replies slow — it freezes the window. Each delta re-ran marked over the
+// WHOLE accumulated reply, then DOMPurify over that, then replaced the entire
+// bubble's DOM. Measured on a 9,700-character answer: 1,617 parses costing
+// 812ms, where parsing the finished text once costs 0.7ms. Roughly 1,100x the
+// necessary work, and it grows with the square of the reply, so a reply twice
+// as long costs four times as much. All of it on the main thread, which is why
+// a long answer left the titlebar buttons unresponsive rather than just slow.
+//
+// Painting ~8 times a second reads as smooth streaming to a person, and caps
+// the work at a fixed rate instead of a growing one. The final paint happens
+// unthrottled on `stop`, so the last tokens are never left unrendered.
+const STREAM_RENDER_MS = 120;
+let streamRenderTimer = null;
+
+function scheduleStreamRender() {
+  if (streamRenderTimer !== null) return; // already queued
+  streamRenderTimer = setTimeout(() => {
+    streamRenderTimer = null;
+    if (!streamingBubble) return;
+    renderAssistantNode(streamingBubble);
+    scrollToBottom();
+  }, STREAM_RENDER_MS);
+}
+
+function cancelStreamRender() {
+  if (streamRenderTimer === null) return;
+  clearTimeout(streamRenderTimer);
+  streamRenderTimer = null;
+}
+
 // ---------- Streaming events from Rust ----------
 // Note: not awaited — we don't need the unlisten handle, and top-level
 // await breaks the production build target.
@@ -503,12 +535,10 @@ listen("chat-chunk", (event) => {
   if (!streamingBubble) return;
 
   if (delta) {
-    // Re-render the accumulated markdown on every chunk so formatting
-    // (bold, lists, code blocks) appears live as it streams in.
+    // Accumulate immediately; paint on a throttle. See scheduleStreamRender.
     streamingRaw += delta;
     streamingBubble.dataset.raw = streamingRaw;
-    renderAssistantNode(streamingBubble);
-    scrollToBottom();
+    scheduleStreamRender();
   }
 
   if (stop) {
@@ -525,6 +555,11 @@ listen("chat-chunk", (event) => {
     // Why the turn ended, when that isn't "it finished": cut off at the
     // length cap, declined, stopped, connection dropped. Absent on a normal
     // completion — a note on every reply would train people to ignore them.
+    // Final paint, unthrottled — the last tokens almost certainly arrived
+    // inside the throttle window and haven't been rendered yet.
+    cancelStreamRender();
+    renderAssistantNode(streamingBubble);
+
     if (notice) appendNotice(streamingBubble, notice);
 
     // A refusal, or an error before the first token, leaves the bubble empty.
@@ -698,11 +733,19 @@ async function showSessionsCard() {
 
   card.innerHTML = `
     <div class="sessions__title">Sessions</div>
+
+    <!-- Export acts on the chat currently OPEN, not on a row below. That was
+         never stated, and sitting directly above a list of every saved chat,
+         the layout implied the opposite. Naming the chat is the whole fix. -->
+    <div class="sessions__subhead">Export this chat</div>
+    <div class="sessions__current" title="${escapeHtml(sessionTitle())}">${escapeHtml(sessionTitle())}</div>
     <div class="sessions__actions">
-      <button class="sessions__btn" data-act="copy">Copy chat as Markdown</button>
-      <button class="sessions__btn" data-act="file">Save chat as .md file</button>
+      <button class="sessions__btn" data-act="copy">Copy as Markdown</button>
+      <button class="sessions__btn" data-act="file">Save as .md file</button>
     </div>
     <div class="sessions__status"></div>
+
+    <div class="sessions__subhead">Saved chats <span class="sessions__hint">— click one to open it, then export</span></div>
     <div class="sessions__list">${rows || '<div class="sessions__empty">No saved sessions yet.</div>'}</div>
     <button class="sessions__danger" data-act="delete-all">Delete all chat history</button>
     <button class="sessions__quit" data-act="quit">Quit Mini Chat for Claude</button>
