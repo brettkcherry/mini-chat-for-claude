@@ -15,7 +15,10 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::{image::Image, AppHandle, Manager};
 
-const TRAY_ICON_BYTES: &[u8] = include_bytes!("../icons/32x32.png");
+// Purpose-drawn for 16-32px (bolder strokes, less internal padding, flat
+// fill — no gradient) rather than reusing the app icon shrunk down, which
+// went mushy in the tray. Same window+pills concept as icons/icon.png.
+const TRAY_ICON_BYTES: &[u8] = include_bytes!("../icons/tray.png");
 const QUIT_ITEM_ID: &str = "tray-quit";
 
 pub struct TrayState {

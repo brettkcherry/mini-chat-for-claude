@@ -42,6 +42,11 @@ it was behaving correctly and telling you nothing.
 - The sessions card now says which chat the export buttons act on. They export
   the chat you have open, but sat directly above a list of every saved chat,
   so the layout implied you were exporting a row from the list.
+- **New app and tray icon.** The old one was tuned to look good large and
+  went muddy in the taskbar and tray, where you actually see it most. New
+  design: a floating window with two message pills, in a warm burnt-amber
+  gradient with real contrast, plus a separate simplified version just for
+  the tray so it stays sharp at that size.
 
 ## [0.4.0] — 2026-08-04
 
