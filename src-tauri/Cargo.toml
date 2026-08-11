@@ -3,7 +3,7 @@
 # "Mini for Claude" (productName in tauri.conf.json). Keeping the crate,
 # identifier, and keyring service stable preserves existing user data.
 name = "claude-mini"
-version = "0.4.1"
+version = "0.4.2"
 description = "Mini Chat for Claude — a tiny floating desktop chat widget for Claude"
 authors = ["Brett Cherry"]
 edition = "2021"

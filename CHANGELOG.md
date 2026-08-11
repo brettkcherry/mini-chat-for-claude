@@ -3,6 +3,18 @@
 Newest first. This project ships one rolling release — only the latest version
 gets fixes ([SECURITY.md](./SECURITY.md)).
 
+## [0.4.2] — 2026-08-04
+
+### Changed
+
+- **New app icon.** Two overlapping message bubbles in crimson, replacing the
+  burnt-amber window+pills design. The front bubble carries the reply tail and
+  stays darkest; the back bubble sits behind it in a lighter tint of the same
+  hue, separated by a thin keyline gap so the overlap reads as depth instead
+  of a notch cut out of one shape. Chosen after testing shape, value
+  structure, and hue independently — this combination was the one that stayed
+  legible all the way down to a 16px taskbar icon.
+
 ## [0.4.1] — 2026-08-04
 
 Five fixes, all found by using the app rather than by any test: in most cases
