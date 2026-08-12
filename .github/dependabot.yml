@@ -7,6 +7,15 @@ version: 2
 #
 # This file turns on *version* updates. Security updates are a separate
 # repo setting — see SECURITY.md for the one-liner to enable it.
+#
+# Every ecosystem below carries a `cooldown`, which holds a new release for a
+# few days before Dependabot will offer it. This is supply-chain latency on
+# purpose: when a package account is compromised, the malicious version is
+# typically caught and yanked within a day or two, and the people it reaches
+# are overwhelmingly the ones who upgraded within hours of publication.
+# Waiting costs nothing here — nothing in this app needs a dependency the day
+# it ships. Cooldown governs *version* updates only; a real advisory comes
+# through the security-updates path and is not delayed by it.
 
 updates:
   # Keeps the SHA pins in release.yml current, rewriting both the SHA and
@@ -16,6 +25,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
 
   # Ships in the installer: dompurify, marked, @tauri-apps/api.
   # vite/postcss are devDependencies and don't reach users.
@@ -24,6 +35,9 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+      semver-patch-days: 3
 
   # ~510 crates, and nothing has ever checked them against RustSec.
   - package-ecosystem: "cargo"
@@ -31,3 +45,6 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+      semver-patch-days: 3

@@ -1,0 +1,64 @@
+# Licence policy for the Rust dependency tree, enforced in CI.
+#
+# This complements about.toml rather than duplicating it. `cargo about`
+# GENERATES the dependency notices in NOTICE.md; this FAILS THE BUILD when a
+# crate arrives under a licence the app cannot ship. A generated report and a
+# gate are different jobs, and only the gate catches the transitive crate that
+# slipped in during a routine `cargo update` — nobody diffs a 500-entry
+# notices file.
+#
+# Mini Chat ships under MIT (see ../LICENSE). That is a narrow outbound
+# licence: it absorbs permissive dependencies happily, but a strong-copyleft
+# one (GPL, AGPL) would make the combined binary undistributable under the
+# terms this app actually claims. Catching that at the moment it enters the
+# tree — rather than after release — is the whole point of this file.
+#
+# Keep `allow` below in step with about.toml's `accepted`. If the two drift,
+# the notices stop describing what is really being shipped.
+
+[graph]
+# Dev-dependencies do not reach a user's machine, so their licences impose
+# nothing on the distributed binary. Matches about.toml's
+# ignore-dev-dependencies = true.
+exclude-dev = true
+
+[licenses]
+version = 2
+# Below this, cargo-deny treats a licence file as unrecognised rather than
+# guessing. Guessing is the failure mode that matters here.
+confidence-threshold = 0.93
+# The allow-list mirrors about.toml and is deliberately forward-looking, so an
+# entry no current crate happens to use is intended, not stale. Warning about
+# those would train everyone to ignore this check's output.
+unused-allowed-license = "allow"
+
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    # Weak, file-level copyleft. Linking imposes nothing on our own source;
+    # only modifications to the MPL-licensed files themselves must stay MPL.
+    "MPL-2.0",
+    "CDLA-Permissive-2.0",
+    "0BSD",
+    "Unlicense",
+    "CC0-1.0",
+    "MIT-0",
+    "BSL-1.0",
+]
+
+# Note the deliberate omission of LGPL-2.1-or-later, which about.toml lists.
+# It only ever appears in this tree as one arm of an `OR` alongside MIT or
+# Apache-2.0, and an OR expression is satisfied by any allowed arm — so
+# leaving it out costs nothing and means the build breaks loudly if a crate
+# ever requires it *alone*. That is a decision worth being asked about rather
+# than one that should pass silently.
+
+[licenses.private]
+# The workspace crate itself is not published; its own licence is LICENSE.
+ignore = true

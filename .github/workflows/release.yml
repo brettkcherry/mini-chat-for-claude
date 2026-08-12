@@ -26,6 +26,16 @@ on:
 jobs:
   release:
     runs-on: windows-latest
+    # Gates this job behind the `release` environment's required reviewer. A
+    # stolen token that can push a tag now gets a workflow that pauses and
+    # emails for approval, rather than a signed release — the signing key is
+    # never handed to a run nobody approved.
+    #
+    # This line alone is not the whole control: while TAURI_SIGNING_PRIVATE_KEY
+    # sits at repository level it stays readable by ANY workflow in the repo,
+    # including one an attacker adds. Moving it to this environment's own
+    # secrets is what actually narrows access to jobs that pass the gate above.
+    environment: release
     permissions:
       contents: write
     steps:
@@ -43,7 +53,14 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - run: npm ci
+      # --ignore-scripts: a compromised npm package's payload almost always
+      # runs from an install lifecycle hook, not from anything the app
+      # imports — so it fires here, in the one job that holds
+      # TAURI_SIGNING_PRIVATE_KEY, and it fires before a single line of our
+      # code has run. Skipping those hooks removes that path entirely.
+      # Verified safe: no package in this tree declares
+      # preinstall/install/postinstall, so nothing is being suppressed.
+      - run: npm ci --ignore-scripts
 
       - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
         env:

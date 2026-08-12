@@ -50,7 +50,11 @@ jobs:
         with:
           node-version: 22
 
-      - run: npm ci
+      # --ignore-scripts: install hooks are where a compromised package puts
+      # its payload. Nothing in this tree declares one, so skipping them
+      # changes nothing about the build and closes the hole. Same flag in
+      # release.yml, where it matters more — that job holds the signing key.
+      - run: npm ci --ignore-scripts
 
       # --omit=dev: vite/postcss are build-time only and never ship in the
       # installer. A moderate+ finding in dompurify/marked/@tauri-apps/api
@@ -76,3 +80,20 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           working-directory: src-tauri
+
+  # Licence policy, not vulnerabilities — cargo-audit above answers "is anything
+  # known-broken?", this answers "may we actually ship this?". Mini Chat is MIT,
+  # which is a narrow outbound licence: it absorbs permissive dependencies but a
+  # strong-copyleft one would make the binary undistributable under the terms
+  # LICENSE claims. about.toml GENERATES the notices; this FAILS the build, and
+  # only the second one catches a transitive crate that arrived in a routine
+  # `cargo update`. Policy and reasoning live in src-tauri/deny.toml.
+  licenses:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        with:
+          manifest-path: src-tauri/Cargo.toml
+          command: check licenses

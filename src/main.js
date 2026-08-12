@@ -11,7 +11,6 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getVersion } from "@tauri-apps/api/app";
-import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 
@@ -835,15 +834,14 @@ async function showSessionsCard() {
         return;
       }
       try {
-        const defaultPath = await invoke("default_export_path", { title: sessionTitle() });
-        const path = await saveDialog({
-          title: "Save chat as Markdown",
-          defaultPath,
-          filters: [{ name: "Markdown", extensions: ["md"] }],
+        // Rust owns the dialog: we hand over the transcript, it hands back the
+        // path it wrote — or null if the user cancelled. There is deliberately
+        // no way to name a destination from here; see sessions.rs.
+        const path = await invoke("export_transcript", {
+          title: sessionTitle(),
+          markdown: transcriptMarkdown(),
         });
-        if (!path) return; // user cancelled the dialog
-        await invoke("write_export", { path, markdown: transcriptMarkdown() });
-        status.textContent = `✓ Saved: ${path}`;
+        if (path) status.textContent = `✓ Saved: ${path}`;
       } catch (err) {
         status.textContent = String(err);
       }

@@ -44,3 +44,38 @@ unpinned action, a way to tamper with a published update artifact).
 
 Ordinary bugs, UI issues, and feature requests belong in the regular
 [issue tracker](https://github.com/brettkcherry/mini-chat-for-claude/issues).
+
+## Properties this app intends to hold
+
+- **The API key never enters the webview.** It is read in Rust and used there;
+  the frontend can ask whether a key exists and see its last four characters,
+  and that is all. `ANTHROPIC_API_KEY` is honoured only in debug builds — in a
+  shipped app an environment variable is an injection point, not a
+  convenience.
+- **Model output cannot become markup.** Responses go through DOMPurify before
+  they reach `innerHTML`, and everything interpolated into the sessions list is
+  escaped. A stale DOMPurify is therefore a live exposure, not routine drift,
+  which is why Dependabot watches it.
+- **The frontend cannot choose a path on disk.** Exporting a transcript hands
+  Rust a title and the contents; Rust runs the save dialog and writes only to
+  what the user picked there. This replaced an earlier design where the
+  frontend passed a path to a `fs::write` — the dialog was a convention rather
+  than a boundary, so anything controlling the webview could have written
+  anywhere the user could.
+
+## Automated gates
+
+These run on every push and pull request, because a check that has to be
+remembered is a check that eventually isn't:
+
+| Gate | What it catches |
+|---|---|
+| `cargo test` | Regressions in session handling, key storage, model parsing |
+| `npm audit --omit=dev` | Advisories in dependencies that actually ship |
+| `rustsec/audit-check` | Advisories in the Rust tree, from a different data source |
+| `cargo deny check licenses` | A dependency arriving under terms MIT can't ship |
+| `npm ci --ignore-scripts` | Install-hook payloads, including in the job holding the signing key |
+
+Release workflow actions are pinned to full commit SHAs. That job holds the
+key authorising updates to every installed copy, so a retagged action would be
+a direct path to shipping a malicious update.

@@ -3,7 +3,45 @@
 Newest first. This project ships one rolling release — only the latest version
 gets fixes ([SECURITY.md](./SECURITY.md)).
 
-## [0.4.2] — 2026-08-04
+## [0.4.2] — 2026-08-12
+
+### Security
+
+- **Exporting a transcript no longer lets the frontend pick the path.** The save
+  dialog now runs in Rust: the frontend passes a title and the contents, and gets
+  back the path that was written. Previously it passed a path to a `fs::write`,
+  which made the dialog a convention the JS side observed rather than a boundary
+  the Rust side enforced — anything controlling the webview could have skipped it
+  and written anywhere the user could, the Startup folder included. The
+  precondition was a DOMPurify bypass, which is unlikely and is exactly the kind
+  of thing that shouldn't be the only thing standing in the way.
+
+  Three commands collapsed into one as a result, and dropping the JS-side dialog
+  also removed the `dialog:allow-save` capability and the
+  `@tauri-apps/plugin-dialog` dependency — the permission no longer exists to
+  misuse.
+- **`npm ci --ignore-scripts` in CI**, including the release job that holds the
+  update signing key. A compromised package's payload almost always runs from an
+  install hook, before any of our own code does. Verified that no package in this
+  tree declares one, so nothing is suppressed.
+- **Licence gate** (`cargo deny check licenses`, policy in `src-tauri/deny.toml`).
+  `cargo about` generates the notices; this fails the build when a dependency
+  arrives under terms an MIT app can't ship. Nobody diffs a 500-entry notices
+  file, so the generated report was never going to catch a transitive crate that
+  appeared during a routine `cargo update`.
+- **Dependabot cooldown.** New versions wait a few days before being offered.
+  Compromised packages are usually caught and pulled within a day or two, and the
+  people they reach are the ones who upgraded within hours of publication.
+- **Release job gated behind required-reviewer approval**, and the update
+  signing key moved off repository-level secrets onto that environment's own —
+  narrowing which workflow runs can ever read it to ones a human approved.
+
+### Fixed
+
+- The crate declared no `license` field, so its own licence was simply unstated —
+  which tooling correctly reads as unlicensed rather than as permissive. Now
+  `license = "MIT"`, matching LICENSE, plus `publish = false` since this is an
+  application and nothing here is meant for crates.io.
 
 ### Changed
 

@@ -9,6 +9,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
+use tauri_plugin_dialog::DialogExt;
 
 use crate::anthropic::Message;
 
@@ -164,31 +165,63 @@ fn sanitize_title_stem(title: &str) -> String {
     if safe.is_empty() { "chat".to_string() } else { safe }
 }
 
-/// Suggest a full path under Documents/Mini Chat for Claude/ — sanitized
-/// title + timestamp for a unique, readable filename. Creates the directory
-/// so the save dialog has somewhere to open, but writes nothing; the user
-/// can still redirect to any folder before anything touches disk.
-pub fn default_export_path(app: &AppHandle, title: &str) -> Result<String, String> {
-    let dir = app
-        .path()
-        .document_dir()
-        .map_err(|e| format!("no documents dir: {e}"))?
-        .join("Mini Chat for Claude");
-    fs::create_dir_all(&dir).map_err(|e| format!("cannot create export dir: {e}"))?;
-
+/// Filename the save dialog opens with: sanitized title + timestamp, so two
+/// exports of the same chat never collide.
+fn default_export_name(title: &str) -> String {
     let stem = sanitize_title_stem(title);
     let ts = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0);
-    let path = dir.join(format!("{stem}-{ts}.md"));
-    Ok(path.to_string_lossy().into_owned())
+    format!("{stem}-{ts}.md")
 }
 
-/// Write an exported transcript to the exact path the user chose in the
-/// save dialog.
-pub fn write_export(path: &str, markdown: &str) -> Result<(), String> {
-    fs::write(path, markdown).map_err(|e| format!("write failed: {e}"))
+/// Export a transcript. Returns the path written to, or `None` if the user
+/// cancelled the dialog.
+///
+/// The dialog runs *here*, in Rust, and the only path ever written to is the
+/// one it returns. That is the whole point of this function's shape. It used
+/// to be two commands — one handing the frontend a suggested path, one taking
+/// a path back and calling `fs::write` on it — which made the save dialog a
+/// frontend convention rather than an enforced boundary. Anything with control
+/// of the webview (a DOMPurify bypass on model output, say) could skip the
+/// dialog and write anywhere the user could: the Startup folder, for one.
+/// Now the frontend supplies only the *contents*; where they land is a
+/// decision it cannot reach. `write` takes the same line in its
+/// src-tauri/src/lib.rs, for the same reason.
+///
+/// Async so Tauri runs it off the main thread — a blocking dialog on the main
+/// thread deadlocks the UI on Windows and macOS alike.
+pub async fn export_transcript(
+    app: &AppHandle,
+    title: &str,
+    markdown: &str,
+) -> Result<Option<String>, String> {
+    let dir = app
+        .path()
+        .document_dir()
+        .map_err(|e| format!("no documents dir: {e}"))?
+        .join("Mini Chat for Claude");
+    // Created so the dialog has somewhere to open. Nothing is written unless
+    // and until the user confirms a filename.
+    fs::create_dir_all(&dir).map_err(|e| format!("cannot create export dir: {e}"))?;
+
+    let picked = app
+        .dialog()
+        .file()
+        .set_title("Save chat as Markdown")
+        .set_directory(&dir)
+        .set_file_name(default_export_name(title))
+        .add_filter("Markdown", &["md"])
+        .blocking_save_file();
+
+    let Some(picked) = picked else { return Ok(None) }; // cancelled
+
+    let path = picked
+        .into_path()
+        .map_err(|e| format!("unusable path from dialog: {e}"))?;
+    fs::write(&path, markdown).map_err(|e| format!("write failed: {e}"))?;
+    Ok(Some(path.to_string_lossy().into_owned()))
 }
 
 #[cfg(test)]

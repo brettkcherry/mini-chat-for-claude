@@ -7,6 +7,13 @@ version = "0.4.2"
 description = "Mini Chat for Claude — a tiny floating desktop chat widget for Claude"
 authors = ["Brett Cherry"]
 edition = "2021"
+# Matches ../LICENSE. Absent, the crate's own licence was simply unstated —
+# `cargo deny check licenses` reads that as unlicensed, which is the correct
+# reading: "no field" and "permissively licensed" are not the same claim.
+license = "MIT"
+# An application, not a library. Nothing here is meant for crates.io, and
+# saying so keeps a stray `cargo publish` from being the way that's discovered.
+publish = false
 
 # Binary entry — this file plus lib.rs is the standard Tauri 2 split.
 [[bin]]

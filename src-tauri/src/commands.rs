@@ -125,18 +125,19 @@ pub fn delete_all_sessions(app: AppHandle) -> Result<usize, String> {
     crate::sessions::delete_all(&app)
 }
 
-/// Suggest a full path under Documents/Mini Chat for Claude/ for the save
-/// dialog to open at. Doesn't write anything — the dialog lets the user
-/// pick a different name or folder before anything touches disk.
+/// Save the transcript as Markdown. Opens the OS save dialog and writes to
+/// whatever the user picks there; `Ok(None)` means they cancelled.
+///
+/// The frontend passes contents, never a destination — see
+/// `sessions::export_transcript` for why that asymmetry is the security
+/// property and not just a tidier signature.
 #[tauri::command]
-pub fn default_export_path(app: AppHandle, title: String) -> Result<String, String> {
-    crate::sessions::default_export_path(&app, &title)
-}
-
-/// Write the transcript to the exact path the user chose in the save dialog.
-#[tauri::command]
-pub fn write_export(path: String, markdown: String) -> Result<(), String> {
-    crate::sessions::write_export(&path, &markdown)
+pub async fn export_transcript(
+    app: AppHandle,
+    title: String,
+    markdown: String,
+) -> Result<Option<String>, String> {
+    crate::sessions::export_transcript(&app, &title, &markdown).await
 }
 
 /// Fully exit. The ✕ button only hides the window — without this command
