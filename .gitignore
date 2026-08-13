@@ -39,6 +39,11 @@ icon-drafts/
 #   PLAN.md     internal current-state and architecture notes.
 #   TESTING.md  test-bench rationale; CONTRIBUTING carries the part a
 #               contributor actually needs.
+#   BRIEF-*     licensing / market / revenue briefs. States monetization
+#               intent and license-change options, and inventories the
+#               project's commercial soft spots. Publishing it would hand a
+#               competitor the strategy and read to users as a rug pull
+#               announced in advance.
 #
 # Note these were public before 2026-08-04, so they remain in git history.
 # Removing them from HEAD stops new detail accruing; it doesn't erase the old.
@@ -48,3 +53,4 @@ HISTORY.md
 LAUNCH.md
 PLAN.md
 TESTING.md
+BRIEF-*.html
