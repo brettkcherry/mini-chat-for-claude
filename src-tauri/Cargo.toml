@@ -49,6 +49,24 @@ futures-util = "0.3"
 keyring = { version = "3", features = ["windows-native", "apple-native"] }
 tauri-plugin-dialog = "2.7.2"
 
+# Linux port, read this first: Cargo.lock carries the whole GTK/WebKit stack
+# (gtk, webkit2gtk, glib, ...) because a lockfile records the union of every
+# platform's dependencies, not just the one being built. None of it compiles
+# into the Windows build — `cargo tree --target x86_64-pc-windows-msvc` finds
+# zero glib, against 29 hits for the linux-gnu target.
+#
+# That distinction is why Dependabot alert #6 (GHSA-wrw7-89jp-8q8g /
+# RUSTSEC-2024-0429, unsoundness in `glib::VariantStrIter`'s iterator impls)
+# was dismissed as not-used rather than fixed. It cannot be fixed here in any
+# case: gtk 0.18.2 requires glib ^0.18 and tauri 2.11.5 pins that gtk, so the
+# patched 0.20 is unreachable until Tauri moves off gtk3-rs upstream.
+#
+# The moment this app actually targets Linux, that reasoning expires — glib
+# starts shipping to users and the advisory needs re-deciding on its merits.
+# Note it is an *unsoundness* advisory, not an exploitable vulnerability,
+# which is why cargo-audit passes green while Dependabot flags it; the two
+# classify informational RustSec advisories differently.
+
 [profile.release]
 panic = "abort"
 codegen-units = 1
