@@ -47,6 +47,9 @@ Frameless, always-on-top-toggleable, resizable, and beautifully responsive — i
 2. SmartScreen may warn once (the app is unfortunately unsigned for now): **More info → Run anyway**
 3. Launch, click the 🔑 button, paste your Anthropic API key — done
 
+New to the Anthropic API? See **[Getting an Anthropic API key](./docs/getting-an-api-key.md)**
+for full step-by-step instructions, no prior experience assumed.
+
 .. eventually: `winget install mini-chat-for-claude` *(coming soon)*
 
 ### Requirements
