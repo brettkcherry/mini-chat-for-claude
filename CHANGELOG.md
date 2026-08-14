@@ -3,7 +3,7 @@
 Newest first. This project ships one rolling release — only the latest version
 gets fixes ([SECURITY.md](./SECURITY.md)).
 
-## [0.4.3] — 2026-08-14
+## [0.4.3] — 2026-08-15
 
 ### Fixed
 
@@ -25,6 +25,14 @@ gets fixes ([SECURITY.md](./SECURITY.md)).
   now hides the same way rather than dropping too. Also stops a second, less
   visible leak: `on_menu_event` pushes into a *global* listener list, so the
   old code was registering a duplicate quit-menu handler per hide as well.
+- **The titlebar buttons no longer jump to the left edge as the window
+  narrows.** Below 360px the container query hides the window title, which
+  left `justify-content: space-between` with a single child — and a lone flex
+  item under `space-between` sits at the *start*, not the end. So the whole
+  button cluster slid across to the opposite side at exactly the width where
+  the app is hardest to aim at. The actions now pin themselves right with
+  `margin-left: auto` instead of relying on the title being there to push
+  them, which holds at every width in the 280–800px resizable range.
 
 ## [0.4.2] — 2026-08-12
 
