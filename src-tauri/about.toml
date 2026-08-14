@@ -2,9 +2,12 @@
 # dependency section. Regenerate with:
 #   cargo about generate about.hbs -o ../NOTICE-rust.md --manifest-path Cargo.toml
 #
-# Every license below is permissive (or, for the two non-OR entries —
-# Unicode-3.0 and CDLA-Permissive-2.0 — was individually reviewed and
-# confirmed to carry no obligations beyond attribution). None are copyleft.
+# Every license below is permissive, with one exception: MPL-2.0 (weak,
+# file-level copyleft — see deny.toml for why that's fine here). The three
+# non-OR entries besides it — Unicode-3.0, CDLA-Permissive-2.0, and MPL-2.0
+# itself — were each individually reviewed and confirmed to carry no
+# obligation beyond attribution (source availability, for MPL-2.0) given
+# these crates are consumed unmodified. None are GPL, AGPL, or LGPL.
 accepted = [
     "MIT",
     "Apache-2.0",

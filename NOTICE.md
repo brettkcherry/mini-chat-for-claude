@@ -10,9 +10,13 @@ Scope: only dependencies that actually ship — either compiled into
 tooling (Vite, the Tauri CLI, PostCSS, etc.) never reaches a user's machine
 and isn't listed here.
 
-**No copyleft.** Every license below is permissive (MIT/Apache-2.0/BSD-style)
-or, for the two non-standard ones, was individually reviewed and carries no
-obligation beyond attribution. Nothing here is GPL, AGPL, or LGPL.
+**No strong copyleft.** Nothing here is GPL, AGPL, or LGPL. Most of what's
+below is permissive (MIT/Apache-2.0/BSD-style) or, for the two non-standard
+ones, was individually reviewed and carries no obligation beyond attribution.
+Five Rust crates are MPL-2.0 — weak, file-level copyleft: they ship unmodified
+from crates.io, so the obligation is satisfied by the source links in the
+per-crate report below, and linking against them imposes nothing on this
+project's own code.
 
 ---
 
