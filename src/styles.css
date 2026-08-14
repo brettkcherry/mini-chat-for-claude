@@ -255,6 +255,11 @@ html, body {
   display: flex;
   gap: 2px;
   -webkit-app-region: no-drag;        /* buttons clickable, not draggable */
+  /* Pins the cluster right on its own rather than relying on the title
+     being there to push it. Under 360px the title is display:none, and a
+     lone child under space-between sits at the START — which sent the
+     whole cluster jumping to the left edge as the window narrowed. */
+  margin-left: auto;
 }
 
 .titlebar__btn {
