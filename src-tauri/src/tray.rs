@@ -7,7 +7,7 @@
 // hide/show in the app (the titlebar close button, the global summon
 // shortcut) routes through hide_window()/show_window() below rather than
 // calling window.hide()/show() directly, so there's exactly one place
-// that creates the icon and exactly one place that destroys it.
+// that reveals the icon and exactly one place that hides it.
 
 use std::sync::Mutex;
 
@@ -20,7 +20,15 @@ use tauri::{image::Image, AppHandle, Manager};
 // went mushy in the tray. Same window+pills concept as icons/icon.png.
 const TRAY_ICON_BYTES: &[u8] = include_bytes!("../icons/tray.png");
 const QUIT_ITEM_ID: &str = "tray-quit";
+const TRAY_ID: &str = "claude-mini-tray";
 
+// The icon is built at most once per process and then shown/hidden with
+// set_visible(), never rebuilt. Rebuilding per hide looks equivalent but
+// isn't: TrayIconBuilder::build() files the icon in the app's resource
+// table, so the app itself holds a strong reference for its whole life.
+// Dropping our own handle therefore removes nothing — the OS icon stays,
+// and the next hide adds another one beside it. (Same reason
+// `enabled`-off can't just drop the handle either.)
 pub struct TrayState {
     enabled: Mutex<bool>,
     icon: Mutex<Option<TrayIcon>>,
@@ -46,8 +54,12 @@ pub fn set_enabled(app: &AppHandle, enabled: bool) {
     *state.enabled.lock().unwrap() = enabled;
     if !enabled {
         // Don't leave a stale icon around if the user disables this
-        // while one happens to be showing.
-        *state.icon.lock().unwrap() = None;
+        // while one happens to be showing. Kept (hidden) rather than
+        // destroyed, so re-enabling doesn't have to rebuild it.
+        let icon_guard = state.icon.lock().unwrap();
+        if let Some(icon) = icon_guard.as_ref() {
+            let _ = icon.set_visible(false);
+        }
     }
 }
 
@@ -71,33 +83,18 @@ pub fn handle_close_button(app: &AppHandle) {
     }
 }
 
-/// Hide the window. If "close to tray" is on, also raise a tray icon
-/// (created once, reused on subsequent hides) that restores the window.
-pub fn hide_window(app: &AppHandle) {
-    if let Some(w) = app.get_webview_window("main") {
-        let _ = w.hide();
-    }
-
-    let state = app.state::<TrayState>();
-    if !*state.enabled.lock().unwrap() {
-        return;
-    }
-
-    let mut icon_guard = state.icon.lock().unwrap();
-    if icon_guard.is_some() {
-        return; // already showing — nothing to do
-    }
-
-    let Ok(icon) = Image::from_bytes(TRAY_ICON_BYTES) else {
-        eprintln!("[claude-mini] failed to decode bundled tray icon");
-        return;
-    };
+/// Build the one tray icon this process will ever own. Called at most
+/// once — see the note on TrayState for why rebuilding isn't an option.
+fn build_icon(app: &AppHandle) -> Option<TrayIcon> {
+    let icon = Image::from_bytes(TRAY_ICON_BYTES)
+        .inspect_err(|_| eprintln!("[claude-mini] failed to decode bundled tray icon"))
+        .ok()?;
 
     let quit_item = MenuItem::with_id(app, QUIT_ITEM_ID, "Quit Mini Chat for Claude", true, None::<&str>);
     let menu = quit_item.ok().and_then(|q| Menu::with_items(app, &[&q]).ok());
 
     let app_for_click = app.clone();
-    let mut builder = TrayIconBuilder::new()
+    let mut builder = TrayIconBuilder::with_id(TRAY_ID)
         .icon(icon)
         .tooltip("Mini Chat for Claude")
         .show_menu_on_left_click(false)
@@ -120,20 +117,45 @@ pub fn hide_window(app: &AppHandle) {
         });
     }
 
-    match builder.build(app) {
-        Ok(tray) => *icon_guard = Some(tray),
-        Err(e) => eprintln!("[claude-mini] tray icon creation failed: {e}"),
+    builder
+        .build(app)
+        .inspect_err(|e| eprintln!("[claude-mini] tray icon creation failed: {e}"))
+        .ok()
+}
+
+/// Hide the window. If "close to tray" is on, also raise the tray icon
+/// (built on first use, shown again on subsequent hides) that restores
+/// the window.
+pub fn hide_window(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.hide();
+    }
+
+    let state = app.state::<TrayState>();
+    if !*state.enabled.lock().unwrap() {
+        return;
+    }
+
+    let mut icon_guard = state.icon.lock().unwrap();
+    if icon_guard.is_none() {
+        *icon_guard = build_icon(app);
+    }
+    if let Some(icon) = icon_guard.as_ref() {
+        let _ = icon.set_visible(true);
     }
 }
 
-/// Show + focus the window and drop the tray icon if present. The only
-/// place the icon is removed — pairs with hide_window() above to keep
-/// "window visible" and "tray icon present" mutually exclusive.
+/// Show + focus the window and hide the tray icon. The only place the
+/// icon is hidden on the show path — pairs with hide_window() above to
+/// keep "window visible" and "tray icon present" mutually exclusive.
 pub fn show_window(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
         let _ = w.set_focus();
     }
     let state = app.state::<TrayState>();
-    *state.icon.lock().unwrap() = None; // dropping TrayIcon removes it from the OS tray
+    let icon_guard = state.icon.lock().unwrap();
+    if let Some(icon) = icon_guard.as_ref() {
+        let _ = icon.set_visible(false);
+    }
 }

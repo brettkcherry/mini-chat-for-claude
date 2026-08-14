@@ -3,6 +3,29 @@
 Newest first. This project ships one rolling release — only the latest version
 gets fixes ([SECURITY.md](./SECURITY.md)).
 
+## [0.4.3] — 2026-08-14
+
+### Fixed
+
+- **`Ctrl+Shift+Space` no longer spawns a new tray icon on every hide.** The
+  code read `TrayIcon` as something you could remove by dropping your own
+  handle to it — `*state.icon.lock().unwrap() = None;`, with a comment
+  claiming "dropping TrayIcon removes it from the OS tray". In Tauri v2 that's
+  not what happens: `TrayIconBuilder::build()` files the icon in the app's own
+  resource table, so the app holds a strong reference for the rest of the
+  process's life regardless of what the caller does with its clone. Dropping
+  ours removed nothing — the OS icon stayed, `hide_window()` then saw "no
+  icon" and built another one on top of it. Every summon/dismiss cycle left
+  one more icon behind, exactly as behind-the-scenes as it sounds until you
+  open the hidden-icons flyout and find a wall of them.
+
+  Fixed by building the icon once per process (`TrayIconBuilder::with_id`,
+  a stable id) and toggling it with `set_visible()` on every hide/show
+  instead of rebuilding. `set_enabled(false)` (the "close to tray" setting)
+  now hides the same way rather than dropping too. Also stops a second, less
+  visible leak: `on_menu_event` pushes into a *global* listener list, so the
+  old code was registering a duplicate quit-menu handler per hide as well.
+
 ## [0.4.2] — 2026-08-12
 
 ### Security
