@@ -2,7 +2,7 @@
 
 **A tiny floating chat widget for Claude that lives on your desktop.**
 
-Frameless, always-on-top-toggleable, resizable, and beautifully responsive at every size — inspired by Spotify's mini player. Summon it with a keystroke, ask Claude anything, get streamed answers, get back to work.
+Frameless, always-on-top-toggleable, resizable, and beautifully responsive — inspired by Spotify's mini player. Summon it with a keybind, ask Claude anything, get streamed answers, get back to your task.
 
 > ⚠️ **Unofficial.** This is an independent open-source project, not affiliated with or endorsed by Anthropic. *Claude* is a trademark of Anthropic, PBC. You bring your own [Anthropic API key](https://console.anthropic.com/) — your **conversations** go directly from your machine to Anthropic's API, nowhere else. The app also talks to two other endpoints on its own, neither carrying any chat content: `api.anthropic.com/v1/models` at startup, to keep the model picker current, and `github.com` on launch, to check for an app update.
 
@@ -26,7 +26,7 @@ Frameless, always-on-top-toggleable, resizable, and beautifully responsive at ev
 - **Light and dark**, or follow your OS theme
 - **Adjustable opacity**, so it can sit over your work without hiding it
 - **Remembers its position and size**; pin it always-on-top from Settings
-- **Auto-updates** from GitHub Releases (opt-in per update, one click)
+- **Auto-update alerts** from GitHub Releases (opt-in per update, one click)
 - **No telemetry, no analytics, no account.** Three network calls, all listed
   above, and none of them is us
 
@@ -44,10 +44,10 @@ Frameless, always-on-top-toggleable, resizable, and beautifully responsive at ev
 ## Install (Windows)
 
 1. Grab the latest `Mini Chat for Claude_x.y.z_x64-setup.exe` from [Releases](../../releases)
-2. SmartScreen may warn once (the app is unsigned for now): **More info → Run anyway**
+2. SmartScreen may warn once (the app is unfortunately unsigned for now): **More info → Run anyway**
 3. Launch, click the 🔑 button, paste your Anthropic API key — done
 
-Or eventually: `winget install mini-chat-for-claude` *(coming after first public release)*
+.. eventually: `winget install mini-chat-for-claude` *(coming after public release)*
 
 ### Requirements
 
@@ -57,8 +57,7 @@ Or eventually: `winget install mini-chat-for-claude` *(coming after first public
 
 **On cost:** you pay Anthropic per message from your own API credits — a
 Claude.ai subscription doesn't cover it. Short exchanges cost a fraction of a
-cent; long ones cost more, since every turn re-sends the conversation so far
-(the app caches that, which removes most of it).
+cent; long ones cost more.
 
 ### Uninstalling
 
@@ -78,7 +77,7 @@ npm run tauri build    # release installer → src-tauri/target/release/bundle/
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) if you're planning to change something.
 
-## Architecture (short version)
+## Architecture
 
 - **Tauri 2** — Rust backend, system WebView2, vanilla JS frontend (no framework)
 - Streaming SSE client in Rust (`src-tauri/src/anthropic.rs`); tokens flow to the UI as Tauri events
