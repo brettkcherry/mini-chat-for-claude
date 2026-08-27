@@ -370,6 +370,9 @@ async function submit() {
   if (!text) return;
 
   history.push({ role: "user", content: text });
+  // Sending is an explicit "I'm at the end of this" — re-pin even if they had
+  // scrolled up to re-read something during the last reply.
+  stickToBottom = true;
   appendMessage("user", text);
   els.input.value = "";
   autosize();
@@ -498,7 +501,50 @@ function beginStreamingBubble() {
   return div;
 }
 
-function scrollToBottom() {
+// ---------- Follow-the-stream scrolling ----------
+// The transcript pins itself to the newest text while a reply streams in, but
+// only for as long as you're actually reading the bottom of it. Scroll up
+// mid-reply and the pin releases: tokens keep arriving and the bubble keeps
+// growing below the fold, while the part you scrolled back to read stays
+// exactly where you left it. Scroll back to the bottom and following resumes
+// on its own — there is no mode to remember or toggle.
+//
+// Before this, every throttled paint (~8 a second) drove scrollTop to the
+// bottom unconditionally, so re-reading anything earlier during a long reply
+// was impossible: the view yanked back down before you got through a line.
+//
+// The threshold is what makes "at the bottom" a state you can actually be in
+// rather than one exact pixel. Fractional scrollHeight under display scaling
+// means the arithmetic rarely lands on zero even when the scrollbar is visibly
+// parked. It stays well under one wheel notch (~50px) so a deliberate scroll
+// up always releases the pin.
+const STICK_THRESHOLD_PX = 32;
+let stickToBottom = true;
+
+function distanceFromBottom() {
+  const el = els.messages;
+  return el.scrollHeight - el.scrollTop - el.clientHeight;
+}
+
+// Our own scrollTop writes fire this too, and that is the point: after we pin
+// to the bottom the listener simply re-confirms the pin. There is no "was this
+// scroll ours or theirs?" flag to keep honest, which is the part of this
+// pattern that usually rots.
+els.messages.addEventListener(
+  "scroll",
+  () => {
+    stickToBottom = distanceFromBottom() <= STICK_THRESHOLD_PX;
+  },
+  { passive: true },
+);
+
+/// Scroll to the newest content, unless the reader has deliberately scrolled
+/// away from it. `force` re-pins regardless, for the moments where the newest
+/// content *is* the point of the action — sending a message, opening a saved
+/// chat — rather than something arriving on its own schedule.
+function scrollToBottom({ force = false } = {}) {
+  if (force) stickToBottom = true;
+  else if (!stickToBottom) return;
   els.messages.scrollTop = els.messages.scrollHeight;
 }
 
@@ -667,6 +713,17 @@ document.addEventListener("click", (e) => {
     !els.modelPicker.contains(e.target)
   ) {
     closeModelMenu();
+  }
+});
+
+// Ctrl+N: new chat, the same muscle memory as every browser/mail/notes app.
+// preventDefault stops WebView2's own new-window handling from firing on the
+// same combo. startNewChat() already no-ops mid-stream, so no extra guard
+// needed here.
+document.addEventListener("keydown", (e) => {
+  if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "n") {
+    e.preventDefault();
+    startNewChat();
   }
 });
 
@@ -907,7 +964,9 @@ async function loadSession(id) {
       els.messages.appendChild(div);
     }
   }
-  scrollToBottom();
+  // Opening a chat should land on its newest message, whatever the scroll
+  // position happened to be in the one being replaced.
+  scrollToBottom({ force: true });
   els.input.focus();
 }
 
